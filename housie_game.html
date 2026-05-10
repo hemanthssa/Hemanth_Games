@@ -548,6 +548,15 @@ function handleStateChange(state) {
   const cur = document.querySelector('.screen.active')?.id;
   if (phase === 'lobby') {
     _ignoringEnded = false;
+    // If player is no longer in the players list (host started fresh), send them to login
+    if (myRole === 'player' && myId && (!state.players || !state.players[myId])) {
+      el('inp-nick').value = myNick; // pre-fill their name so they just click Join
+      el('pwd-field').style.display = 'none';
+      el('login-title').textContent = '🎟️ Re-join Game';
+      showToast('🔄 Host started a new game — please re-join', 3500);
+      showScreen('s-login');
+      return;
+    }
     renderLobby(state);
     if (cur==='s-host' || cur==='s-player' || cur==='s-ended') showScreen('s-lobby');
   } else if (phase === 'playing') {
@@ -918,32 +927,30 @@ window.hostRemovePlayer = async function(pid) {
 };
 
 // ── Go to Lobby (replaces Go Home on ended screen) ──
-// Host resets the room to lobby phase in Firebase; all subscribers get routed there.
-// Players just set _ignoringEnded and the lobby is shown locally.
+// Host wipes all players except themselves and resets room to lobby.
+// Players who are still subscribed detect they're no longer in the list → sent to login.
 window.goToLobby = async function() {
   _ignoringEnded = true;
   if (myRole === 'host') {
-    // Reset room to lobby — Firebase listener will push ALL clients to lobby screen
-    const snap = await get(ROOM_REF());
-    const state = snap.val();
-    const existingPlayers = (state && state.players) || {};
-    // Keep only non-kicked players; clear game data
-    const cleanPlayers = {};
-    Object.entries(existingPlayers).forEach(([pid, p]) => {
-      if (!p.kicked) cleanPlayers[pid] = p;
-    });
+    // Only keep the host entry; everyone else re-registers fresh
+    const hostPlayerData = {};
+    if (myId) {
+      const snap = await get(PLAYER_REF(myId));
+      const me = snap.val();
+      if (me) hostPlayerData[myId] = me;
+    }
     await set(ROOM_REF(), {
       phase:'lobby', hostId:myId,
-      players:cleanPlayers,
+      players: hostPlayerData,
       calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null
     });
-    // Firebase listener will route everyone to s-lobby
+    // Firebase listener routes host to s-lobby; players detect absence → go to login
   } else {
-    // Player: just show lobby; host will reset when ready
-    el('lobby-role-badge').textContent = '🎟️ Player';
-    el('host-controls').style.display  = 'none';
-    el('lobby-wait-msg').style.display = 'block';
-    showScreen('s-lobby');
+    // Player: go to login so they can re-register fresh
+    el('inp-nick').value = myNick;
+    el('pwd-field').style.display = 'none';
+    el('login-title').textContent = '🎟️ Re-join Game';
+    showScreen('s-login');
   }
 };
 

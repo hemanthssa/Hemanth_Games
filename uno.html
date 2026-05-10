@@ -487,6 +487,52 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 .seat-card-count { font-size: 9px; font-weight: 800; color: #ffffff90; text-shadow: 0 1px 4px #000; }
 
+/* Person silhouette behind each seat */
+.seat-person {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  transition: opacity .35s, filter .35s;
+}
+.seat-person.active {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 7px #FFD700) drop-shadow(0 0 18px #FFD70060);
+}
+.seat-avatar { position: relative; z-index: 1; }
+
+/* Discard pile — stacked cards */
+#discardPile {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  flex-shrink: 0;
+}
+.discard-ghost {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #2c1654, #1a0a3c);
+  border: 1.5px solid #ffffff1a;
+  box-shadow: 0 2px 8px #00000090;
+}
+.discard-ghost::after {
+  content: 'UNO';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px; color: #ffffff22;
+  pointer-events: none;
+}
+.discard-top {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
 /* My seat bar */
 .my-seat-bar {
   position: absolute;
@@ -515,7 +561,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* Targeted player alert — single-line banner, top of the card play area */
 .targeted-alert {
   position: absolute;
-  top: 10px;
+  bottom: 54px;
   left: 0;
   z-index: 50;
   display: flex;
@@ -1151,13 +1197,25 @@ function renderGame(gs, prev) {
     }
   }
 
-  // Discard pile
+  // Discard pile — stacked ghost cards + top card
   const discardEl = el('discardPile');
   discardEl.innerHTML = '';
   const discard = gs.discardPile||[];
   if(discard.length > 0) {
+    // Fixed-angle rotations for a believable pile
+    const rots = [-8, 6, -4, 9, -6, 3, -11, 5, -2, 7];
+    const ghostCount = Math.min(discard.length - 1, 6);
+    for(let g = 0; g < ghostCount; g++) {
+      const ghost = document.createElement('div');
+      ghost.className = 'discard-ghost';
+      ghost.style.transform = `rotate(${rots[g % rots.length]}deg)`;
+      ghost.style.zIndex = g + 1;
+      discardEl.appendChild(ghost);
+    }
     const top = discard[discard.length-1];
-    discardEl.appendChild(renderCard(top, {colorOverride: (top.color==='wild')?gs.currentColor:null}));
+    const topEl = renderCard(top, {colorOverride: (top.color==='wild')?gs.currentColor:null});
+    topEl.classList.add('discard-top');
+    discardEl.appendChild(topEl);
   }
 
   // Draw pile count
@@ -2066,10 +2124,14 @@ function renderTableSeats(gs, curPid) {
     const myIsWinner = winners.includes(myId);
     const myRank     = rankings.findIndex(r=>r.id===myId);
     const myColor    = SEAT_COLORS[(myIdx<0?0:myIdx) % SEAT_COLORS.length];
+    const myPersonSvg = `<div class="seat-person ${myIsActive?'active':''}"><svg width="44" height="54" viewBox="0 0 50 62" fill="white" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="14" r="11"/><path d="M2 62 Q2 30 25 28 Q48 30 48 62Z"/></svg></div>`;
     mySeatRow.innerHTML = `
-      <div class="my-seat-bar-avatar ${myIsActive?'active':''}"
-           style="background:${myColor}28;border-color:${myIsActive?'var(--gold)':myColor+'70'}">
-        <span style="color:${myColor}">${(myP.nick||myNick||'?')[0].toUpperCase()}</span>
+      <div style="position:relative">
+        ${myPersonSvg}
+        <div class="my-seat-bar-avatar ${myIsActive?'active':''}"
+             style="background:${myColor}28;border-color:${myIsActive?'var(--gold)':myColor+'70'}">
+          <span style="color:${myColor}">${(myP.nick||myNick||'?')[0].toUpperCase()}</span>
+        </div>
       </div>
       <div>
         <div class="my-seat-bar-name">${myP.nick||myNick}${myIsActive?' 🎯':''}</div>
@@ -2187,9 +2249,11 @@ function renderTableSeats(gs, curPid) {
     seat.style.alignItems    = 'center';
     seat.style.gap = '3px';
 
+    const personSvg = `<div class="seat-person ${isActive?'active':''}"><svg width="50" height="62" viewBox="0 0 50 62" fill="white" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="14" r="11"/><path d="M2 62 Q2 30 25 28 Q48 30 48 62Z"/></svg></div>`;
     seat.innerHTML = `
       ${fanHTML}
       <div style="position:relative">
+        ${personSvg}
         <div class="seat-avatar ${isActive?'active':''} ${isWinner?'won':''}"
              style="background:${bgColor}30;border-color:${isActive?'var(--gold)':bgColor+'70'}">
           <span style="color:${bgColor}">${(p.nick||'?')[0].toUpperCase()}</span>
@@ -2303,7 +2367,7 @@ let _targetedAlertTimeout = null;
 function showTargetedAlert(icon, title, sub, borderColor) {
   document.querySelectorAll('.targeted-alert').forEach(d => d.remove());
   clearTimeout(_targetedAlertTimeout);
-  const playArea = document.querySelector('.table-inner') || document.querySelector('.table-scene');
+  const playArea = document.querySelector('.table-scene') || document.querySelector('.table-inner');
   if(!playArea) return;
   const div = document.createElement('div');
   div.className = 'targeted-alert';

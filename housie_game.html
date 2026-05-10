@@ -556,43 +556,50 @@ window.hostStartGame = async function() {
 };
 
 // ── Ticket generation ──
-// Returns a plain object {"cellIndex": number} — only stores filled cells.
-// Firebase drops null entries from arrays, so we avoid arrays-with-nulls entirely.
-// Structure: 3 rows × 9 cols (27 cells total), 5 numbers per row.
-// Middle row (row 1): one number is always forced into column index 4 (= column 5, 1-indexed).
+// Returns a 27-element integer array: 0 = empty cell, 1-90 = the number.
+// Using 0 (not null) so Firebase preserves every slot — Firebase silently drops
+// null/undefined from arrays/objects, which would destroy the grid layout.
+// Structure: 3 rows × 9 columns. 5 numbers per row, placed at random columns.
+// Middle row (row index 1): one number is ALWAYS forced into column index 4
+// (= column 5 when counting from 1) — required for the Middle Number milestone.
 function generateRandomTicket() {
-  const pool = shuffle(Array.from({length:90},(_,i)=>i+1));
-  const chosen = pool.slice(0,15);
+  const pool = shuffle(Array.from({length:90}, (_,i) => i+1));
+  const chosen = pool.slice(0, 15);
   const rows = [chosen.slice(0,5), chosen.slice(5,10), chosen.slice(10,15)];
-  const cells = {};
+  const data = Array(27).fill(0); // 0 = empty
   rows.forEach((nums, r) => {
     const avail = [0,1,2,3,4,5,6,7,8];
     let cols;
-    if (r===1) {
-      // Force column index 4 (column 5, 1-indexed) for the Middle Number milestone
-      const rest = shuffle(avail.filter(c=>c!==4));
-      cols = [4, ...rest.slice(0,4)].sort((a,b)=>a-b);
+    if (r === 1) {
+      // Force column 4 for Middle Number milestone guarantee
+      const rest = shuffle(avail.filter(c => c !== 4));
+      cols = [4, ...rest.slice(0,4)].sort((a,b) => a-b);
     } else {
-      cols = shuffle([...avail]).slice(0,5).sort((a,b)=>a-b);
+      cols = shuffle([...avail]).slice(0,5).sort((a,b) => a-b);
     }
-    nums.forEach((n,k) => { cells[String(r*9 + cols[k])] = n; });
+    nums.forEach((n, k) => { data[r*9 + cols[k]] = n; });
   });
-  return cells; // e.g. {"2":15, "4":37, ...}
+  return data; // e.g. [0,15,0,0,37,0,0,62,0, ...]
 }
 
-// Reconstruct a 27-element array (null = empty cell) from the Firebase ticket object.
-function ticketToArray(cells) {
-  const arr = Array(27).fill(null);
-  if (!cells || typeof cells !== 'object' || Array.isArray(cells)) {
-    // Legacy array support (shouldn't happen with new code, but just in case)
-    if (Array.isArray(cells)) return cells.length === 27 ? cells : arr;
+// Safely read ticket from Firebase state into a 27-element int array (0=empty).
+// Handles both dense array (normal) and object-keyed form (Firebase edge case).
+function safeTicket(raw) {
+  if (!raw) return Array(27).fill(0);
+  if (Array.isArray(raw)) {
+    // Extend to 27 if shorter, replace null/undefined with 0
+    return Array.from({length:27}, (_,i) => Number(raw[i])||0);
+  }
+  if (typeof raw === 'object') {
+    // Firebase sometimes returns a dense array as a plain object {"0":v,"1":v,...}
+    const arr = Array(27).fill(0);
+    Object.entries(raw).forEach(([k,v]) => {
+      const i = parseInt(k, 10);
+      if (i >= 0 && i < 27) arr[i] = Number(v)||0;
+    });
     return arr;
   }
-  Object.entries(cells).forEach(([k, v]) => {
-    const idx = parseInt(k, 10);
-    if (idx >= 0 && idx < 27 && typeof v === 'number') arr[idx] = v;
-  });
-  return arr;
+  return Array(27).fill(0);
 }
 
 // ── Host: Render game ──
@@ -722,7 +729,7 @@ window.hostTerminateGame = async function() {
 // ── Player: Render game ──
 function renderPlayerGame(state) {
   const called     = state.calledNumbers || [];
-  const ticket     = ticketToArray(state.tickets && state.tickets[myId]);
+  const ticket     = safeTicket(state.tickets && state.tickets[myId]);
   const strikes    = (state.strikes  && state.strikes[myId]) || [];
   const milestones = state.milestones || {};
   const struckSet  = new Set(strikes);
@@ -740,16 +747,27 @@ function renderPlayerGame(state) {
 
 function renderPlayerTicket(ticket, struckSet, called) {
   const t = el('p-live-ticket'); t.innerHTML = '';
-  const ticketNums = ticket.filter(v=>v!==null);
+  const ticketNums = ticket.filter(v => v > 0); // v>0 because 0 means empty
+  if (ticketNums.length === 0) {
+    // Ticket not yet assigned — show waiting message
+    const msg = document.createElement('div');
+    msg.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--muted);padding:1.5rem;font-size:.9rem;';
+    msg.textContent = '⏳ Waiting for host to distribute ticket…';
+    t.appendChild(msg);
+    el('p-struck-count').textContent = '0';
+    el('p-remaining-count').textContent = '0';
+    return;
+  }
   ticket.forEach(val => {
     const cell = document.createElement('div');
-    const struck = val!==null && struckSet.has(val);
-    cell.className = `ticket-cell${val===null?' empty':''}${struck?' struck':''}`;
-    if (val!==null) { cell.textContent=val; cell.onclick=()=>playerStrike(val,called); }
+    const isEmpty = val === 0;
+    const struck  = !isEmpty && struckSet.has(val);
+    cell.className = `ticket-cell${isEmpty?' empty':''}${struck?' struck':''}`;
+    if (!isEmpty) { cell.textContent = val; cell.onclick = () => playerStrike(val, called); }
     t.appendChild(cell);
   });
-  el('p-struck-count').textContent     = [...struckSet].filter(n=>ticketNums.includes(n)).length;
-  el('p-remaining-count').textContent  = ticketNums.filter(n=>!struckSet.has(n)).length;
+  el('p-struck-count').textContent    = [...struckSet].filter(n => ticketNums.includes(n)).length;
+  el('p-remaining-count').textContent = ticketNums.filter(n => !struckSet.has(n)).length;
 }
 
 // ── Player: Strike (validate called) ──
@@ -789,20 +807,34 @@ function renderPlayerClaims(ticket, struckSet, milestones, called) {
 
 // ── Milestone check (local) ──
 function checkMilestone(id, ticket, struckSet, called) {
-  if (!ticket||!ticket.length) return false;
+  if (!ticket || ticket.length < 27) return false;
+  const allNums = ticket.filter(v => v > 0);
+  if (allNums.length === 0) return false; // ticket not loaded yet — never eligible
   const calledSet = new Set(called);
-  const rowNums = r => ticket.slice(r*9,r*9+9).filter(v=>v!==null);
-  const rowDone = r => rowNums(r).every(n => struckSet.has(n) && calledSet.has(n));
-  switch(id) {
-    case 'early5':   return [...struckSet].filter(n=>calledSet.has(n)).length>=5;
+  // rowNums: the actual numbers placed in a row (non-zero cells only)
+  const rowNums = r => ticket.slice(r*9, r*9+9).filter(v => v > 0);
+  // rowDone: ALL numbers in that row are both called AND struck
+  // NOTE: guard rowNums.length>0 to avoid JavaScript's vacuous truth ([].every = true)
+  const rowDone = r => {
+    const nums = rowNums(r);
+    return nums.length > 0 && nums.every(n => struckSet.has(n) && calledSet.has(n));
+  };
+  switch (id) {
+    case 'early5': {
+      // At least 5 numbers that are both on the ticket AND called AND struck
+      return [...struckSet].filter(n => n > 0 && calledSet.has(n) && allNums.includes(n)).length >= 5;
+    }
     case 'middle': {
-      const midVal = ticket[13]; // row 2 col 4 = flat index 13 (guaranteed by generator)
-      return midVal!==null && midVal!==undefined && struckSet.has(midVal) && calledSet.has(midVal);
+      // Row 1 (middle row), column index 4 = flat index 13 — forced by generator
+      const midVal = ticket[13];
+      return midVal > 0 && struckSet.has(midVal) && calledSet.has(midVal);
     }
     case 'top':      return rowDone(0);
     case 'mid-line': return rowDone(1);
     case 'bot-line': return rowDone(2);
-    case 'full':     return ticket.filter(v=>v!==null).every(n=>struckSet.has(n)&&calledSet.has(n));
+    case 'full': {
+      return allNums.length > 0 && allNums.every(n => struckSet.has(n) && calledSet.has(n));
+    }
     default: return false;
   }
 }

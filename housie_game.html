@@ -690,6 +690,9 @@ function renderHostGame(state) {
   const milestones = state.milestones || {};
 
   if (!el('h-num-grid').children.length) buildNumGrid('h-num-grid','h');
+  // Clear ALL cells first, then re-apply only the currently called numbers.
+  // Without the clear step, highlights from the previous game persist on a fresh start.
+  el('h-num-grid').querySelectorAll('.num-cell').forEach(c => c.classList.remove('called'));
   called.forEach(n => { const c=el('hcell'+n); if(c) c.classList.add('called'); });
   el('h-called-count').textContent = called.length;
   el('h-big-num').textContent = called.length ? called[called.length-1] : '—';

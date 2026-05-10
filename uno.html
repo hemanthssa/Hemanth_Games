@@ -370,7 +370,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   flex: 1; min-height: 0; position: relative; overflow: visible;
   background: radial-gradient(ellipse at 50% 40%, #1a1a35 0%, #0e0e1c 100%);
   display: flex; align-items: center; justify-content: center;
-  padding: 55px 50px 68px;
+  padding: 90px 90px 100px;
 }
 
 /* ── Rectangular table ── */
@@ -426,7 +426,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 
 /* Seat container */
-#tableSeats { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+#tableSeats { position: absolute; inset: 0; z-index: 10; pointer-events: none; overflow: visible; }
 
 /* Each seat */
 .table-seat {
@@ -2245,18 +2245,58 @@ function renderTableSeats(gs, curPid) {
     seat.style.alignItems    = 'center';
     seat.style.gap = '3px';
 
-    // ── Standalone person figure (outside the table, behind the seat) ──
+    // ── Standalone person figure — fully OUTSIDE the table edge, head touching the rim ──
+    // Figure SVG is 70×82, viewBox 0 0 70 82. Head centre is at y=12, so head-top=0.
+    // We scale it down for many players and compute the real pixel size.
+    const figScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
+    const figW = Math.round(70 * figScale);  // rendered px width
+    const figH = Math.round(82 * figScale);  // rendered px height
+    // Head is at ~14.6% of figH from top (y=12/82*figH).
+    const headOffsetFromTop = Math.round(12 / 82 * figH);
+
     const figRotMap = { top: 180, left: -90, right: 90 };
     const figRot = figRotMap[pos.side] || 0;
-    // Offset figure center outward from the seat so the figure's head appears AT the table edge
-    const figOX = pos.side==='left' ? -20 : pos.side==='right' ? 20 : 0;
-    const figOY = pos.side==='top'  ? -20 : 0;
+
+    // For each side, the figure's head must sit right at the table outer rim.
+    // The table outer rim in container-space:
+    //   top edge  → y = 0 (relative to #tableSeats which covers the rummy-table)
+    //   left edge → x = 0
+    //   right edge→ x = tw
+    //   bottom edge is handled separately for myFig
+    //
+    // When rotated 180° (top player), the SVG is flipped:
+    //   what was the "bottom" (chair) is now at the top of the rendered element,
+    //   and the "head" is at the bottom of the rendered element.
+    // So figEl top-edge = tableY - figH, and head sits at tableY - headOffsetFromTop.
+    // We want head at y=0 (top rim), so figEl.top = -(figH - headOffsetFromTop).
+    //
+    // For left/right (rotated ±90°), the SVG rotates around its centre.
+    // We position by left/right then let transform handle the rest.
+
+    let figLeft, figTop;
+    if(pos.side === 'top') {
+      // Rotated 180°: head is at bottom of rendered rect → we push the whole element above the rim
+      figLeft = pos.x;  // centred at same x as seat
+      figTop  = -(figH - headOffsetFromTop);  // head just at y=0 top rim
+    } else if(pos.side === 'left') {
+      // Rotated 90°: head points right. Position element so head touches left rim (x=0).
+      figLeft = -(figH - headOffsetFromTop);  // same math, using figH as the rotated width
+      figTop  = pos.y;
+    } else { // right
+      // Rotated -90°: head points left. Push element so head at x=tw.
+      figLeft = tw + (figH - headOffsetFromTop);
+      figTop  = pos.y;
+    }
+
     const figEl = document.createElement('div');
     figEl.className = 'player-figure' + (isActive?' active':'');
-    figEl.style.left = (pos.x + figOX) + 'px';
-    figEl.style.top  = (pos.y + figOY) + 'px';
+    figEl.style.position  = 'absolute';
+    figEl.style.left      = figLeft + 'px';
+    figEl.style.top       = figTop + 'px';
     figEl.style.transform = `translate(-50%,-50%) rotate(${figRot}deg)`;
-    figEl.innerHTML = makePersonSVG(p.nick||'?', handCount, isWinner);
+    figEl.style.width     = figW + 'px';
+    figEl.style.height    = figH + 'px';
+    figEl.innerHTML = makePersonSVG(p.nick||'?', handCount, isWinner, figW, figH);
     container.appendChild(figEl);
 
     seat.innerHTML = `
@@ -2274,26 +2314,36 @@ function renderTableSeats(gs, curPid) {
     container.appendChild(seat);
   });
 
-  // ── My own figure (bottom of table, head pointing up toward table) ──
+  // ── My own figure — fully outside bottom edge, head touching the bottom rim ──
+  const myFigScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
+  const myFigW = Math.round(70 * myFigScale);
+  const myFigH = Math.round(82 * myFigScale);
+  const myHeadOff = Math.round(12 / 82 * myFigH);
   const myIsActiveFig = curPid === myId;
   const myFig = document.createElement('div');
   myFig.className = 'player-figure' + (myIsActiveFig ? ' active' : '');
-  myFig.style.left = (tw / 2) + 'px';
-  myFig.style.top  = (th + 14) + 'px';
+  myFig.style.position  = 'absolute';
+  myFig.style.left      = (tw / 2) + 'px';
+  // No rotation: head (top of SVG) should touch bottom rim at y=th
+  myFig.style.top       = (th + myHeadOff) + 'px';
   myFig.style.transform = 'translate(-50%,-50%) rotate(0deg)';
-  myFig.innerHTML = makePersonSVG(myP.nick||myNick||'Me', (gs.hands&&gs.hands[myId]||[]).length, myIsWinner);
+  myFig.style.width     = myFigW + 'px';
+  myFig.style.height    = myFigH + 'px';
+  myFig.innerHTML = makePersonSVG(myP.nick||myNick||'Me', (gs.hands&&gs.hands[myId]||[]).length, myIsWinner, myFigW, myFigH);
   container.appendChild(myFig);
 
   // ── Direction arrows along table border ──
   renderDirectionArrows(tw, th, gs.direction||1, gs.lastReverse);
 }
 
-function makePersonSVG(nick, cardCount, isWinner) {
-  // Truncate nick to fit on shirt (max ~8 chars visually)
-  const label = (nick||'').substring(0, 9);
-  const fontSize = label.length > 6 ? 4.2 : 5.2;
-  const countLabel = isWinner ? '\u2713' : (cardCount != null ? cardCount+'\u25A0' : '');
-  return `<svg width="70" height="82" viewBox="0 0 70 82" xmlns="http://www.w3.org/2000/svg">
+function makePersonSVG(nick, cardCount, isWinner, pxW, pxH) {
+  pxW = pxW || 70; pxH = pxH || 82;
+  const label = (nick||'').substring(0, 10);
+  // Scale font so it is always readable: base 8px in 70px-wide SVG, scale with actual width
+  const baseFont = Math.max(7, Math.round(8 * pxW / 70));
+  const fontSize = label.length > 7 ? Math.max(6, baseFont - 1) : baseFont;
+  const countLabel = isWinner ? '\u2713' : (cardCount != null ? String(cardCount) : '');
+  return `<svg width="${pxW}" height="${pxH}" viewBox="0 0 70 82" xmlns="http://www.w3.org/2000/svg">
     <!-- Chair back -->
     <path d="M4 76 Q35 86 66 76 L66 70 Q35 80 4 70 Z" fill="#8B5E3C"/>
     <!-- Chair seat / cushion -->
@@ -2335,14 +2385,17 @@ function makePersonSVG(nick, cardCount, isWinner) {
     <path d="M28 15.5 Q35 20 42 15.5" stroke="#c47a3a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
     <!-- Shirt collar V -->
     <path d="M28 25 L35 30 L42 25" stroke="#2a5fad" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Name on shirt -->
+    <!-- Name on shirt: white text with dark shadow for readability -->
+    <text x="35" y="43" text-anchor="middle" dominant-baseline="middle"
+          font-family="Arial Black, Arial, sans-serif" font-size="${fontSize}" font-weight="900"
+          fill="#00000055" letter-spacing="0.2">${label}</text>
     <text x="35" y="42" text-anchor="middle" dominant-baseline="middle"
-          font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold"
-          fill="#ffffffdd" letter-spacing="0.3">${label}</text>
-    <!-- Card count badge (small circle bottom-right of shirt) -->
-    ${countLabel ? `<circle cx="56" cy="52" r="7" fill="#0008"/>
-    <text x="56" y="52" text-anchor="middle" dominant-baseline="middle"
-          font-family="Arial, sans-serif" font-size="5.5" font-weight="bold" fill="#FFD700">${countLabel}</text>` : ''}
+          font-family="Arial Black, Arial, sans-serif" font-size="${fontSize}" font-weight="900"
+          fill="#ffffff" letter-spacing="0.2">${label}</text>
+    <!-- Card count badge -->
+    ${countLabel ? `<circle cx="58" cy="53" r="8" fill="#000000aa"/>
+    <text x="58" y="53" text-anchor="middle" dominant-baseline="middle"
+          font-family="Arial, sans-serif" font-size="7" font-weight="bold" fill="#FFD700">${countLabel}</text>` : ''}
   </svg>`;
 }
 

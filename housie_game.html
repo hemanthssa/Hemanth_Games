@@ -369,7 +369,7 @@
     <h2>Game Over!</h2>
     <p style="color:var(--muted);font-size:.9rem;margin-bottom:.5rem">Milestone winners</p>
     <div class="ms-result-list" id="ended-results"></div>
-    <button class="btn btn-pink" style="margin-top:1.5rem;width:100%" onclick="goHome()">🏠 Back to Home</button>
+    <button class="btn btn-pink" style="margin-top:1.5rem;width:100%" onclick="goToLobby()">🎲 Play Again (Go to Lobby)</button>
   </div>
 </div>
 
@@ -426,6 +426,7 @@ let myId   = null, myNick = '', myRole = '', loginRole = '';
 let roomUnsub = null, autoTimer = null, autoInterval = 5000;
 let claimNotifTimer = null;
 let _lastNotifKey = '';
+let _ignoringEnded = false; // true when user explicitly navigated to lobby from ended screen
 
 // ── Utilities ──
 function uid() { return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
@@ -478,10 +479,25 @@ window.doLogin = async function() {
   if (myRole === 'host') {
     const fresh = !state || state.phase === 'ended';
     if (fresh) {
-      await set(ROOM_REF(), { phase:'lobby', hostId:myId, players:{[myId]:pd}, calledNumbers:[], tickets:{}, strikes:{}, milestones:{} });
+      // Preserve any players already waiting; only wipe game data
+      const existingPlayers = (state && state.players) || {};
+      await set(ROOM_REF(), {
+        phase:'lobby', hostId:myId,
+        players:{ ...existingPlayers, [myId]:pd },
+        calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null
+      });
     } else {
       await update(ROOM_REF(), { hostId:myId });
       await set(PLAYER_REF(myId), pd);
+    }
+  } else {
+    // Player joining
+    if (!state) {
+      // No room at all yet — create a minimal lobby so the listener has something to read
+      await update(ROOM_REF(), { phase:'lobby' });
+    } else if (state.phase === 'ended') {
+      // Room is from a finished game; show lobby instead of old end-screen
+      _ignoringEnded = true;
     }
   }
 
@@ -514,16 +530,38 @@ function subscribeRoom() {
 }
 
 function handleStateChange(state) {
+  if (!state) return;
+
+  // ── Kicked check: player was removed by host ──
+  if (myId && myRole !== 'host' && state.players && state.players[myId] && state.players[myId].kicked) {
+    stopAuto();
+    if (roomUnsub) { roomUnsub(); roomUnsub = null; }
+    onDisconnect(PLAYER_REF(myId)).cancel();
+    myId = null; myNick = ''; myRole = '';
+    el('inp-nick').value = '';
+    showToast('❌ You were removed from the game by the host', 4000);
+    showScreen('s-login');
+    return;
+  }
+
   const phase = state.phase || 'lobby';
   const cur = document.querySelector('.screen.active')?.id;
   if (phase === 'lobby') {
+    _ignoringEnded = false;
     renderLobby(state);
-    if (cur==='s-host' || cur==='s-player') showScreen('s-lobby');
+    if (cur==='s-host' || cur==='s-player' || cur==='s-ended') showScreen('s-lobby');
   } else if (phase === 'playing') {
+    _ignoringEnded = false;
     if (myRole==='host') { renderHostGame(state); if(cur!=='s-host') showScreen('s-host'); }
     else                 { renderPlayerGame(state); if(cur!=='s-player') showScreen('s-player'); }
   } else if (phase === 'ended') {
-    stopAuto(); renderEndScreen(state); showScreen('s-ended');
+    if (_ignoringEnded) {
+      // Newly-joined player or someone who already clicked "Go to Lobby" — stay in lobby
+      renderLobby(state);
+      if (cur !== 's-lobby') showScreen('s-lobby');
+    } else {
+      stopAuto(); renderEndScreen(state); showScreen('s-ended');
+    }
   }
 }
 
@@ -532,15 +570,20 @@ function renderLobby(state) {
   const players = state.players || {};
   const list = el('lobby-player-list'); list.innerHTML = '';
   let onlinePlayers = 0;
-  Object.values(players).forEach(p => {
+  Object.entries(players).forEach(([pid, p]) => {
+    if (p.kicked) return; // don't show kicked players
     if (p.role!=='host' && p.connected) onlinePlayers++;
+    const removeBtn = (myRole==='host' && p.role!=='host')
+      ? `<button class="btn btn-red btn-sm" onclick="hostRemovePlayer('${pid}')">✕ Remove</button>`
+      : '';
     const row = document.createElement('div'); row.className = 'player-row';
     row.innerHTML = `<div class="online-dot ${p.connected?'online':'offline'}"></div>
       <span class="nick">${p.nick}</span>
-      <span class="role-tag ${p.role==='host'?'host-tag':''}">${p.role==='host'?'🎙️ Host':'🎟️ Player'}</span>`;
+      <span class="role-tag ${p.role==='host'?'host-tag':''}">` + (p.role==='host'?'🎙️ Host':'🎟️ Player') + `</span>
+      ${removeBtn}`;
     list.appendChild(row);
   });
-  if (!list.children.length) list.innerHTML = '<div class="waiting-msg">No players yet…</div>';
+  if (!list.children.length) list.innerHTML = '<div class="waiting-msg">No players yet… share the link!</div>';
   if (myRole==='host') el('start-btn').disabled = onlinePlayers < 1;
 }
 
@@ -618,12 +661,13 @@ function renderHostGame(state) {
 
   const pList = el('h-player-list'); pList.innerHTML = '';
   Object.entries(players).forEach(([pid,p]) => {
-    if (p.role==='host') return;
+    if (p.role==='host' || p.kicked) return;
     const s = (state.strikes&&state.strikes[pid])||[];
     const row = document.createElement('div'); row.className = 'player-row';
     row.innerHTML = `<div class="online-dot ${p.connected?'online':'offline'}"></div>
       <span class="nick">${p.nick}</span>
-      <span style="font-size:.8rem;color:var(--muted)">${s.length} struck</span>`;
+      <span style="font-size:.8rem;color:var(--muted);flex:1">${s.length} struck</span>
+      <button class="btn btn-red btn-sm" onclick="hostRemovePlayer('${pid}')">✕ Remove</button>`;
     pList.appendChild(row);
   });
 
@@ -864,6 +908,44 @@ async function playerClaim(msId, ticket, struckSet, called) {
     showToast('😔 Someone else claimed this first!');
   }
 }
+
+// ── Host: Remove a player ──
+window.hostRemovePlayer = async function(pid) {
+  if (!confirm('Remove this player from the game?')) return;
+  // Mark as kicked in Firebase — their listener will catch this and send them to login
+  await update(PLAYER_REF(pid), { kicked:true, connected:false });
+  onDisconnect(PLAYER_REF(pid)).cancel();
+};
+
+// ── Go to Lobby (replaces Go Home on ended screen) ──
+// Host resets the room to lobby phase in Firebase; all subscribers get routed there.
+// Players just set _ignoringEnded and the lobby is shown locally.
+window.goToLobby = async function() {
+  _ignoringEnded = true;
+  if (myRole === 'host') {
+    // Reset room to lobby — Firebase listener will push ALL clients to lobby screen
+    const snap = await get(ROOM_REF());
+    const state = snap.val();
+    const existingPlayers = (state && state.players) || {};
+    // Keep only non-kicked players; clear game data
+    const cleanPlayers = {};
+    Object.entries(existingPlayers).forEach(([pid, p]) => {
+      if (!p.kicked) cleanPlayers[pid] = p;
+    });
+    await set(ROOM_REF(), {
+      phase:'lobby', hostId:myId,
+      players:cleanPlayers,
+      calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null
+    });
+    // Firebase listener will route everyone to s-lobby
+  } else {
+    // Player: just show lobby; host will reset when ready
+    el('lobby-role-badge').textContent = '🎟️ Player';
+    el('host-controls').style.display  = 'none';
+    el('lobby-wait-msg').style.display = 'block';
+    showScreen('s-lobby');
+  }
+};
 
 // ── End screen ──
 function renderEndScreen(state) {

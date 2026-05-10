@@ -78,7 +78,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .waiting-msg span { color: var(--accent); }
 
 /* ── GAME SCREEN ── */
-#gameScreen { background: var(--bg); padding: 0; overflow: hidden; justify-content: flex-start; }
+#gameScreen { background: #12121f; padding: 0; overflow: hidden; justify-content: flex-start; }
 .game-layout { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 520px; margin: 0 auto; }
 
 /* Top bar */
@@ -368,86 +368,151 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* ── TABLE GAME VIEW ── */
 .table-scene {
   flex: 1; min-height: 0; position: relative; overflow: hidden;
-  background: radial-gradient(ellipse 90% 80% at 50% 43%, #1d5c3a 0%, #0d3322 52%, #07120e 100%);
+  background: radial-gradient(ellipse at 50% 40%, #1a1a35 0%, #0e0e1c 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 8px 66px;
 }
-/* Decorative oval rim */
-.table-scene::before {
-  content: ''; position: absolute;
-  width: 84%; height: 76%;
-  top: 43%; left: 50%; transform: translate(-50%, -50%);
-  border: 2px solid #3a9a6428; border-radius: 50%;
-  box-shadow: inset 0 0 60px #00000022, 0 0 0 10px #00000010;
-  pointer-events: none; z-index: 1;
+
+/* The actual oval table */
+.rummy-table {
+  position: relative;
+  width: min(92vw, 460px);
+  /* keep it square-ish so the oval looks right on tall phones */
+  aspect-ratio: 1 / 1.08;
+  max-height: 78vh;
+  flex-shrink: 0;
 }
-/* Piles in the center of the table */
+/* Wood rim */
+.rummy-table::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 30% 25%, #c8933a 0%, #8b5e1a 40%, #5c3a0a 100%);
+  box-shadow:
+    0 0 0 3px #7a4f10,
+    0 8px 40px #00000090,
+    inset 0 2px 8px #ffffff18;
+}
+/* Felt surface inside the rim */
+.rummy-table::after {
+  content: '';
+  position: absolute; inset: 10px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 35% 30%, #2d7a50 0%, #1a5c38 45%, #0f3d25 100%);
+  box-shadow:
+    inset 0 4px 30px #00000040,
+    inset 0 0 0 1px #3da06840;
+}
+
+/* Everything inside the table sits above the felt */
+.table-inner { position: absolute; inset: 10px; border-radius: 50%; overflow: hidden; z-index: 2; }
+
+/* Center piles */
 .table-center {
-  position: absolute; top: 43%; left: 50%; transform: translate(-50%, -50%);
-  display: flex; align-items: center; gap: 16px; z-index: 5;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 14px; z-index: 5;
 }
-.table-pile-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.table-pile-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #ffffff45; }
-.table-pile-count { font-size: 11px; font-weight: 800; color: #ffffff80; }
-.table-center-info { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.table-pile-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.table-pile-label {
+  font-size: 8px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.2px; color: #ffffff50;
+}
+.table-pile-count { font-size: 10px; font-weight: 800; color: #ffffff70; }
+.table-center-info { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .table-dir-svg { display: block; transition: transform .55s cubic-bezier(.34,1.56,.64,1); }
 .table-dir-svg.reversed { transform: scaleX(-1); }
-.table-color-pill { width: 40px; height: 8px; border-radius: 4px; border: 1.5px solid #ffffff22; transition: background .4s; }
-/* Seats container */
+.table-color-pill { width: 36px; height: 7px; border-radius: 4px; border: 1.5px solid #ffffff20; transition: background .4s; }
+
+/* Seat container — covers the full rummy-table div */
 #tableSeats { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
-/* Individual opponent seat */
+
+/* Each seat: centered at its position via transform */
 .table-seat {
-  position: absolute; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: absolute;
+  display: flex; flex-direction: column; align-items: center;
   transform: translate(-50%, -50%);
+  pointer-events: none;
 }
-.seat-cards-fan { display: flex; position: relative; height: 30px; }
-.seat-card-mini {
-  position: absolute; width: 17px; height: 26px; border-radius: 3px;
+
+/* Card back fan for opponents */
+.seat-fan {
+  display: flex; align-items: flex-end; justify-content: center;
+  position: relative;
+  /* height dynamically set per seat */
+}
+.seat-fan-card {
+  position: absolute;
+  width: 20px; height: 30px;
+  border-radius: 4px;
   background: linear-gradient(145deg, #3d2070, #1a0a3c);
-  border: 1px solid #ffffff22; box-shadow: 0 2px 5px #00000060;
+  border: 1px solid #ffffff28;
+  box-shadow: 0 2px 6px #00000070;
   transform-origin: bottom center;
 }
-.seat-avatar-wrap { position: relative; }
+/* UNO text on back */
+.seat-fan-card::after {
+  content: 'U';
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-family: 'Bebas Neue', sans-serif; font-size: 8px; color: #ffffff40;
+}
+
+/* Avatar circle on the table edge */
 .seat-avatar {
-  width: 40px; height: 40px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 900; border: 2.5px solid transparent;
+  font-size: 13px; font-weight: 900;
+  border: 2.5px solid transparent;
+  box-shadow: 0 2px 12px #00000070;
   transition: border-color .3s, box-shadow .3s, transform .25s;
+  position: relative;
 }
 .seat-avatar.active {
   border-color: var(--gold) !important;
-  box-shadow: 0 0 0 4px #FFD70028, 0 0 20px #FFD70075;
-  transform: scale(1.12);
+  box-shadow: 0 0 0 4px #FFD70030, 0 0 22px #FFD70080;
+  transform: scale(1.18);
 }
-.seat-avatar.won { opacity: .4; }
+.seat-avatar.won { opacity: .35; }
 .seat-win-badge {
-  position: absolute; top: -4px; right: -4px; width: 16px; height: 16px;
-  border-radius: 50%; background: var(--gold); color: #000;
-  font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center;
+  position: absolute; top: -5px; right: -5px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--gold); color: #000;
+  font-size: 8px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
 }
 .seat-name {
-  font-size: 10px; font-weight: 800; color: #fff;
-  text-shadow: 0 1px 6px #000c, 0 0 12px #000a;
-  white-space: nowrap; max-width: 72px; overflow: hidden; text-overflow: ellipsis; text-align: center;
+  font-size: 9px; font-weight: 800; color: #fff;
+  text-shadow: 0 1px 6px #000, 0 0 10px #000;
+  white-space: nowrap; max-width: 68px;
+  overflow: hidden; text-overflow: ellipsis; text-align: center;
+  margin-top: 2px;
 }
-.seat-card-count { font-size: 10px; font-weight: 800; color: #ffffffb0; text-shadow: 0 1px 4px #000; }
-/* My seat pill at bottom of table scene */
-.my-seat-row {
-  position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); z-index: 15;
-  display: flex; align-items: center; gap: 10px;
-  background: #00000055; backdrop-filter: blur(8px);
-  border-radius: 26px; padding: 6px 18px 6px 8px; border: 1px solid #ffffff15;
-  white-space: nowrap;
+.seat-card-count { font-size: 9px; font-weight: 800; color: #ffffff90; text-shadow: 0 1px 4px #000; }
+
+/* My seat — fixed strip at bottom of table-scene */
+.my-seat-bar {
+  position: absolute;
+  bottom: 6px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: #1e1e32; border: 1px solid #ffffff15;
+  border-radius: 24px; padding: 5px 16px 5px 8px;
+  white-space: nowrap; z-index: 20; pointer-events: none;
+  box-shadow: 0 4px 20px #00000080;
 }
-.my-seat-avatar {
-  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+.my-seat-bar-avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 900; border: 2.5px solid transparent; transition: all .3s;
+  font-size: 13px; font-weight: 900; border: 2.5px solid transparent;
+  transition: all .3s;
 }
-.my-seat-avatar.active { border-color: var(--gold) !important; box-shadow: 0 0 0 3px #FFD70025, 0 0 16px #FFD70065; }
-.my-seat-info { display: flex; flex-direction: column; gap: 1px; }
-.my-seat-name { font-size: 12px; font-weight: 800; color: var(--text); line-height: 1.3; }
-.my-seat-sub { font-size: 10px; font-weight: 700; color: var(--text2); }
+.my-seat-bar-avatar.active { border-color: var(--gold) !important; box-shadow: 0 0 0 3px #FFD70025, 0 0 14px #FFD70065; }
+.my-seat-bar-name { font-size: 11px; font-weight: 800; color: var(--text); line-height: 1.3; }
+.my-seat-bar-sub { font-size: 9px; font-weight: 700; color: var(--text2); }
+
 /* Flying card */
-.flying-card { position: fixed; pointer-events: none; z-index: 950; will-change: left, top, opacity; }
+.flying-card { position: fixed; pointer-events: none; z-index: 950; }
+
+/* Targeted player alert — single-line banner, top of the card play area */
 
 /* Targeted player alert — single-line banner, top of the card play area */
 .targeted-alert {
@@ -1989,55 +2054,60 @@ function showMoveAnnouncement(msg) {
 const SEAT_COLORS = ['#E53935','#1E88E5','#43A047','#FDD835','#9c27b0','#FF7043','#26C6DA','#EC407A'];
 
 function renderTableSeats(gs, curPid) {
-  const players = gs.players||{};
-  const order   = gs.playerOrder||[];
+  const players  = gs.players||{};
+  const order    = gs.playerOrder||[];
   const winners  = gs.winners||[];
   const rankings = gs.rankings||[];
-  const N = order.length;
-  const myIdx = order.indexOf(myId);
+  const N        = order.length;
+  const myIdx    = order.indexOf(myId);
 
-  // ── My seat pill ──
+  // ── My seat bar ──
   const mySeatRow = el('mySeatRow');
-  if(mySeatRow && myIdx >= 0) {
-    const myP = players[myId]||{};
-    const myHandCount = (gs.hands&&gs.hands[myId])||[];
-    const myIsActive  = curPid === myId;
-    const myIsWinner  = winners.includes(myId);
-    const myRank      = rankings.findIndex(r=>r.id===myId);
-    const myBgColor   = SEAT_COLORS[myIdx % SEAT_COLORS.length];
+  if(mySeatRow) {
+    const myP        = players[myId]||{};
+    const myHand     = (gs.hands&&gs.hands[myId])||[];
+    const myIsActive = curPid === myId;
+    const myIsWinner = winners.includes(myId);
+    const myRank     = rankings.findIndex(r=>r.id===myId);
+    const myColor    = SEAT_COLORS[(myIdx < 0 ? 0 : myIdx) % SEAT_COLORS.length];
     mySeatRow.innerHTML = `
-      <div class="my-seat-avatar ${myIsActive?'active':''}"
-           style="background:${myBgColor}28;border-color:${myIsActive?'var(--gold)':myBgColor+'60'}">
-        <span style="color:${myBgColor}">${(myP.nick||myNick||'?')[0].toUpperCase()}</span>
+      <div class="my-seat-bar-avatar ${myIsActive?'active':''}"
+           style="background:${myColor}28;border-color:${myIsActive?'var(--gold)':myColor+'70'}">
+        <span style="color:${myColor}">${(myP.nick||myNick||'?')[0].toUpperCase()}</span>
       </div>
-      <div class="my-seat-info">
-        <div class="my-seat-name">${myP.nick||myNick}${myIsActive?' 🎯':''}</div>
-        <div class="my-seat-sub">${myIsWinner?'#'+(myRank+1)+' ✓':(myHandCount.length+' cards')}</div>
+      <div>
+        <div class="my-seat-bar-name">${myP.nick||myNick}${myIsActive?' 🎯':''}</div>
+        <div class="my-seat-bar-sub">${myIsWinner?'#'+(myRank+1)+' ✓':myHand.length+' cards'}</div>
       </div>`;
   }
 
-  // ── Opponent seats (positioned on an ellipse around the table) ──
+  // ── Opponent seats ──
   const container = el('tableSeats');
   container.innerHTML = '';
 
-  const scene = document.querySelector('.table-scene');
-  if(!scene || N < 2) return;
-  const sw = scene.offsetWidth  || 360;
-  const sh = scene.offsetHeight || 440;
+  const table = el('rummyTable');
+  if(!table || N < 2) return;
 
-  // Ellipse centre & radii for seat placement
-  const cx = sw * 0.50;
-  const cy = sh * 0.42;
-  const rx = Math.min(sw * 0.37, 148);
-  const ry = sh * 0.36;
+  // Use the table element dimensions for positioning
+  const tw = table.offsetWidth  || 320;
+  const th = table.offsetHeight || 346;
+
+  // Ellipse centre (same as CSS 50%/50%)
+  const cx = tw * 0.50;
+  const cy = th * 0.50;
+  // Radii — seats sit just inside the wood rim (~80% of half-dimensions)
+  const rx = tw * 0.40;
+  const ry = th * 0.40;
 
   order.forEach((pid, i) => {
     if(pid === myId) return;
     const p = players[pid]; if(!p) return;
 
-    // Clockwise from bottom (me=90°), skipping my own slot
-    const relIdx  = ((i - myIdx + N) % N);
-    const angle   = Math.PI/2 + relIdx * (2*Math.PI/N);
+    // Me is always at bottom (270° = -π/2). Other players distributed clockwise.
+    const relIdx = ((i - myIdx + N) % N);           // position relative to me
+    const angleDeg = 270 + relIdx * (360 / N);      // degrees, clockwise from bottom
+    const angle    = (angleDeg * Math.PI) / 180;
+
     const x = cx + rx * Math.cos(angle);
     const y = cy + ry * Math.sin(angle);
 
@@ -2047,15 +2117,23 @@ function renderTableSeats(gs, curPid) {
     const rank      = rankings.findIndex(r=>r.id===pid);
     const bgColor   = SEAT_COLORS[i % SEAT_COLORS.length];
 
-    // Mini card-back fan (up to 5 cards)
-    const fanCount = Math.min(handCount, 5);
+    // Rotate the card fan so it points toward the center
+    // Cards fan outward from their seat position
+    const towardCenterDeg = (angleDeg + 180) % 360;   // opposite of seat angle
+    const fanRotate = towardCenterDeg - 270;           // offset so "up" = toward center
+
+    // Build card fan HTML
+    const fanCount = Math.min(handCount, 7);
     let fanHTML = '';
     if(!isWinner && fanCount > 0) {
-      const fanW = fanCount * 11 + 8;
-      fanHTML = `<div class="seat-cards-fan" style="width:${fanW}px">`;
+      const spread = Math.min(22, fanCount * 4);
+      const fanW   = fanCount * 7 + 28;
+      const fanH   = 36;
+      fanHTML = `<div class="seat-fan" style="width:${fanW}px;height:${fanH}px;transform:rotate(${fanRotate}deg)">`;
       for(let k=0;k<fanCount;k++){
-        const rot = -18 + k * (36 / Math.max(fanCount-1, 1));
-        fanHTML += `<div class="seat-card-mini" style="left:${k*11}px;transform:rotate(${rot}deg)"></div>`;
+        const rot = -spread/2 + k * (spread / Math.max(fanCount-1,1));
+        const offX = (fanW/2 - 10) + Math.sin(rot*Math.PI/180) * 12;
+        fanHTML += `<div class="seat-fan-card" style="left:${k*(fanW-20)/(Math.max(fanCount-1,1))}px;bottom:0;transform:rotate(${rot}deg);transform-origin:bottom center"></div>`;
       }
       fanHTML += '</div>';
     }
@@ -2063,13 +2141,15 @@ function renderTableSeats(gs, curPid) {
     const seat = document.createElement('div');
     seat.className = 'table-seat';
     seat.id = 'seat-'+pid;
-    seat.style.left = x+'px';
-    seat.style.top  = y+'px';
+    seat.style.left = x + 'px';
+    seat.style.top  = y + 'px';
+
+    // Stack: fan above avatar (fan pointing toward table center)
     seat.innerHTML = `
       ${fanHTML}
-      <div class="seat-avatar-wrap">
+      <div style="position:relative">
         <div class="seat-avatar ${isActive?'active':''} ${isWinner?'won':''}"
-             style="background:${bgColor}28;border-color:${isActive?'var(--gold)':bgColor+'55'}">
+             style="background:${bgColor}30;border-color:${isActive?'var(--gold)':bgColor+'70'}">
           <span style="color:${bgColor}">${(p.nick||'?')[0].toUpperCase()}</span>
         </div>
         ${isWinner&&rank>=0?`<div class="seat-win-badge">${rank+1}</div>`:''}
@@ -2084,39 +2164,37 @@ function renderTableSeats(gs, curPid) {
 function flyCardToDiscard(playerId, card) {
   const srcEl  = playerId === myId ? el('mySeatRow') : document.getElementById('seat-'+playerId);
   const destEl = el('discardPile');
-  if(!srcEl || !destEl) return;
-
-  const srcRect  = srcEl.getBoundingClientRect();
+  if(!destEl) return;
+  // Fallback start position: centre of rummy table
+  const fallback = el('rummyTable') || el('mySeatRow');
+  const srcRect  = (srcEl || fallback).getBoundingClientRect();
   const destRect = destEl.getBoundingClientRect();
 
-  // Create a scaled-down copy of the card
   const flyDiv = document.createElement('div');
   flyDiv.className = 'flying-card';
   const cardEl = renderCard(card);
-  cardEl.style.transform = 'scale(0.78)';
+  cardEl.style.transform = 'scale(0.75)';
   cardEl.style.transformOrigin = 'top left';
   flyDiv.appendChild(cardEl);
 
-  // Start at centre of source element
-  flyDiv.style.left    = (srcRect.left  + srcRect.width  / 2 - 27) + 'px';
-  flyDiv.style.top     = (srcRect.top   + srcRect.height / 2 - 40) + 'px';
-  flyDiv.style.opacity = '1';
+  flyDiv.style.left    = (srcRect.left  + srcRect.width  / 2 - 25) + 'px';
+  flyDiv.style.top     = (srcRect.top   + srcRect.height / 2 - 37) + 'px';
+  flyDiv.style.opacity = '0.92';
   document.body.appendChild(flyDiv);
 
-  // Animate to discard pile centre
-  const endX = destRect.left + destRect.width  / 2 - 27;
-  const endY = destRect.top  + destRect.height / 2 - 40;
+  const endX = destRect.left + destRect.width  / 2 - 25;
+  const endY = destRect.top  + destRect.height / 2 - 37;
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      flyDiv.style.transition = 'left .48s cubic-bezier(.25,.46,.45,.94), top .48s cubic-bezier(.25,.46,.45,.94)';
+      flyDiv.style.transition = 'left .45s cubic-bezier(.25,.46,.45,.94), top .45s cubic-bezier(.25,.46,.45,.94)';
       flyDiv.style.left = endX + 'px';
       flyDiv.style.top  = endY + 'px';
       setTimeout(() => {
         flyDiv.style.transition = 'opacity .2s';
         flyDiv.style.opacity = '0';
         setTimeout(() => flyDiv.remove(), 220);
-      }, 500);
+      }, 470);
     });
   });
 }
@@ -2126,7 +2204,7 @@ let _targetedAlertTimeout = null;
 function showTargetedAlert(icon, title, sub, borderColor) {
   document.querySelectorAll('.targeted-alert').forEach(d => d.remove());
   clearTimeout(_targetedAlertTimeout);
-  const playArea = document.querySelector('.table-scene');
+  const playArea = document.querySelector('.table-inner') || document.querySelector('.table-scene');
   if(!playArea) return;
   const div = document.createElement('div');
   div.className = 'targeted-alert';
@@ -2297,35 +2375,38 @@ document.addEventListener('DOMContentLoaded', ()=>{
 <!-- ── GAME SCREEN ── -->
 <div id="gameScreen" class="screen hidden">
   <div class="game-layout">
-    <!-- Table scene (replaces top-bar + players-strip + play-area) -->
+    <!-- Table scene -->
     <div class="table-scene">
-      <!-- Center piles + direction + color -->
-      <div class="table-center">
-        <div class="table-pile-wrap">
-          <div class="draw-pile" id="drawPileEl">
-            <div class="uno-card card-back" style="cursor:pointer">
-              <div class="card-inner"><span class="card-back-logo">UNO</span></div>
+      <div class="rummy-table" id="rummyTable">
+        <div class="table-inner"></div>
+        <!-- Center piles + direction + color -->
+        <div class="table-center">
+          <div class="table-pile-wrap">
+            <div class="draw-pile" id="drawPileEl">
+              <div class="uno-card card-back" style="cursor:pointer">
+                <div class="card-inner"><span class="card-back-logo">UNO</span></div>
+              </div>
             </div>
+            <div class="table-pile-label">Draw</div>
+            <div class="table-pile-count" id="drawPileCount">—</div>
           </div>
-          <div class="table-pile-label">Draw</div>
-          <div class="table-pile-count" id="drawPileCount">—</div>
+          <div class="table-center-info">
+            <svg id="tableDirSvg" class="table-dir-svg" width="34" height="20" viewBox="0 0 34 20" fill="none">
+              <path d="M2 10 H26" stroke="#ffffff60" stroke-width="2" stroke-linecap="round"/>
+              <path d="M20 3 L28 10 L20 17" stroke="#ffffff60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="table-color-pill" id="tableColorPill"></div>
+          </div>
+          <div class="table-pile-wrap">
+            <div id="discardPile"></div>
+            <div class="table-pile-label">Discard</div>
+          </div>
         </div>
-        <div class="table-center-info">
-          <svg id="tableDirSvg" class="table-dir-svg" width="36" height="22" viewBox="0 0 36 22" fill="none">
-            <path d="M3 11 H28" stroke="#ffffff68" stroke-width="2" stroke-linecap="round"/>
-            <path d="M21 4 L30 11 L21 18" stroke="#ffffff68" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <div class="table-color-pill" id="tableColorPill"></div>
-        </div>
-        <div class="table-pile-wrap">
-          <div id="discardPile"></div>
-          <div class="table-pile-label">Discard</div>
-        </div>
+        <!-- Opponent seats (JS-rendered) -->
+        <div id="tableSeats"></div>
       </div>
-      <!-- Opponent seats (JS-rendered) -->
-      <div id="tableSeats"></div>
-      <!-- My seat label at bottom -->
-      <div class="my-seat-row" id="mySeatRow"></div>
+      <!-- My seat badge (outside the oval, bottom of the table-scene) -->
+      <div class="my-seat-bar" id="mySeatRow"></div>
     </div>
 
     <!-- My hand -->

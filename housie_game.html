@@ -476,39 +476,48 @@ window.doLogin = async function() {
   }
 
   myRole = loginRole;
+  myNick = nick;
 
-  // ── Deduplicate by nick: if same name already exists in players, reuse that slot ──
-  // This prevents duplicate entries when a player leaves and rejoins with the same name.
-  if (myRole === 'player' && state && state.players) {
-    const existing = Object.entries(state.players)
-      .find(([, p]) => !p.kicked && p.nick === nick && p.role === 'player');
-    if (existing) {
-      myId = existing[0]; // reuse the old Firebase slot
-    } else {
-      myId = uid();
-    }
+  // ── Nick-based deduplication (applies to BOTH host and player) ──
+  // Find every existing entry with this nick — regardless of role.
+  // Reuse the first match as myId so the Firebase slot is overwritten, not duplicated.
+  // Delete any extra duplicates that somehow accumulated.
+  const allPlayers = (state && state.players) ? Object.entries(state.players) : [];
+  const sameNick   = allPlayers.filter(([, p]) => !p.kicked && p.nick === nick);
+
+  if (sameNick.length > 0) {
+    myId = sameNick[0][0]; // reuse first matching slot
+    // Remove any extra duplicates (shouldn't normally exist, but clean up just in case)
+    await Promise.all(sameNick.slice(1).map(([pid]) => remove(PLAYER_REF(pid))));
   } else {
     myId = uid();
   }
 
-  myNick = nick;
   const pd = { nick, role:myRole, connected:true, joinedAt:Date.now() };
   await set(PLAYER_REF(myId), pd);
   onDisconnect(PLAYER_REF(myId)).update({ connected:false });
 
   if (myRole === 'host') {
+    // Remove any OLD host entries that are NOT the current myId
+    // (left over from previous sessions where host logged in without cleaning up)
+    const staleHosts = allPlayers.filter(([pid, p]) => p.role === 'host' && pid !== myId);
+    await Promise.all(staleHosts.map(([pid]) => remove(PLAYER_REF(pid))));
+
     const fresh = !state || state.phase === 'ended';
     if (fresh) {
-      // Preserve any players already waiting; only wipe game data
-      const existingPlayers = (state && state.players) || {};
+      // Keep only non-host, non-kicked waiting players; wipe all game data
+      const cleanPlayers = {};
+      allPlayers.forEach(([pid, p]) => {
+        if (pid !== myId && p.role !== 'host' && !p.kicked) cleanPlayers[pid] = p;
+      });
       await set(ROOM_REF(), {
         phase:'lobby', hostId:myId,
-        players:{ ...existingPlayers, [myId]:pd },
+        players:{ ...cleanPlayers, [myId]:pd },
         calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null
       });
     } else {
+      // Room already running — just update hostId (myId slot already written above)
       await update(ROOM_REF(), { hostId:myId });
-      await set(PLAYER_REF(myId), pd);
     }
   } else {
     // Player joining

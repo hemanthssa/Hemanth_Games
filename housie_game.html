@@ -146,13 +146,25 @@
   /* ── CLAIM NOTIFICATION (host) ── */
   .claim-notif {
     background:var(--gold-light); border:2px solid var(--gold); border-radius:14px;
-    padding:1rem 1.4rem; margin-bottom:1rem;
+    padding:1rem 1.4rem; margin-bottom:.8rem;
     display:flex; align-items:center; gap:.8rem; animation:pop .4s ease;
   }
   .claim-notif .cn-icon { font-size:1.8rem; flex-shrink:0; }
   .claim-notif .cn-text { flex:1; }
   .claim-notif .cn-text strong { font-size:1rem; color:var(--pink-dark); }
   .claim-notif .cn-text span   { font-size:.85rem; color:var(--muted); display:block; }
+
+  /* ── FIXED CLAIM NOTIFICATION (always visible regardless of scroll) ── */
+  #fixed-claim-notif {
+    position:fixed; bottom:1.5rem; right:1.5rem; z-index:800;
+    width:320px; max-width:calc(100vw - 2rem);
+    pointer-events:none;
+  }
+  #fixed-claim-notif .claim-notif {
+    pointer-events:all;
+    box-shadow:0 8px 32px rgba(0,0,0,0.22);
+    margin-bottom:0;
+  }
 
   /* ── PLAYER TICKET ── */
   .ticket-wrapper { background:#fff; border-radius:var(--radius); padding:1.2rem; box-shadow:var(--shadow); margin-bottom:1.2rem; }
@@ -363,6 +375,8 @@
 
 <!-- ── TOAST & WINNER MODAL ── -->
 <div id="toast"></div>
+<!-- Fixed claim notification — always visible regardless of scroll -->
+<div id="fixed-claim-notif"></div>
 <div id="winner-overlay">
   <div class="winner-box">
     <div class="trophy">🏆</div>
@@ -541,25 +555,44 @@ window.hostStartGame = async function() {
   showToast('Game started! 🎉');
 };
 
-// ── Ticket generation (Middle Number guaranteed at flat index 13) ──
+// ── Ticket generation ──
+// Returns a plain object {"cellIndex": number} — only stores filled cells.
+// Firebase drops null entries from arrays, so we avoid arrays-with-nulls entirely.
+// Structure: 3 rows × 9 cols (27 cells total), 5 numbers per row.
+// Middle row (row 1): one number is always forced into column index 4 (= column 5, 1-indexed).
 function generateRandomTicket() {
   const pool = shuffle(Array.from({length:90},(_,i)=>i+1));
   const chosen = pool.slice(0,15);
   const rows = [chosen.slice(0,5), chosen.slice(5,10), chosen.slice(10,15)];
-  const data = Array(27).fill(null);
+  const cells = {};
   rows.forEach((nums, r) => {
     const avail = [0,1,2,3,4,5,6,7,8];
     let cols;
     if (r===1) {
-      // Force col 4 (Middle Number milestone guarantee)
+      // Force column index 4 (column 5, 1-indexed) for the Middle Number milestone
       const rest = shuffle(avail.filter(c=>c!==4));
-      cols = [4,...rest.slice(0,4)].sort((a,b)=>a-b);
+      cols = [4, ...rest.slice(0,4)].sort((a,b)=>a-b);
     } else {
       cols = shuffle([...avail]).slice(0,5).sort((a,b)=>a-b);
     }
-    nums.forEach((n,k) => { data[r*9+cols[k]] = n; });
+    nums.forEach((n,k) => { cells[String(r*9 + cols[k])] = n; });
   });
-  return data;
+  return cells; // e.g. {"2":15, "4":37, ...}
+}
+
+// Reconstruct a 27-element array (null = empty cell) from the Firebase ticket object.
+function ticketToArray(cells) {
+  const arr = Array(27).fill(null);
+  if (!cells || typeof cells !== 'object' || Array.isArray(cells)) {
+    // Legacy array support (shouldn't happen with new code, but just in case)
+    if (Array.isArray(cells)) return cells.length === 27 ? cells : arr;
+    return arr;
+  }
+  Object.entries(cells).forEach(([k, v]) => {
+    const idx = parseInt(k, 10);
+    if (idx >= 0 && idx < 27 && typeof v === 'number') arr[idx] = v;
+  });
+  return arr;
 }
 
 // ── Host: Render game ──
@@ -617,18 +650,30 @@ function renderHostMilestones(milestones) {
 }
 
 function showClaimNotif(lc) {
-  const area = el('claim-notif-area'); area.innerHTML = '';
   const ms = MILESTONES.find(m=>m.id===lc.milestoneId);
-  const div = document.createElement('div'); div.className = 'claim-notif';
-  div.innerHTML = `<div class="cn-icon">🏆</div>
-    <div class="cn-text">
-      <strong>${lc.playerNick} claimed ${ms?ms.label:lc.milestoneId}!</strong>
-      <span>Check milestones above.</span>
-    </div>
-    <button class="btn btn-sm btn-outline" onclick="this.closest('.claim-notif').remove()">✕</button>`;
-  area.appendChild(div);
+  const makeNotif = (closeBtn) => {
+    const d = document.createElement('div'); d.className = 'claim-notif';
+    d.innerHTML = `<div class="cn-icon">🏆</div>
+      <div class="cn-text">
+        <strong>${lc.playerNick} claimed ${ms?ms.label:lc.milestoneId}!</strong>
+        <span>${ms?ms.desc:''}</span>
+      </div>
+      ${closeBtn}`;
+    return d;
+  };
+
+  // ① Fixed overlay — always visible no matter where the host has scrolled
+  const fixed = el('fixed-claim-notif'); fixed.innerHTML = '';
+  const fixedDiv = makeNotif(`<button class="btn btn-sm btn-outline" onclick="el('fixed-claim-notif').innerHTML=''">✕</button>`);
+  fixed.appendChild(fixedDiv);
+
+  // ② In-page area (visible when host is near the top)
+  const area = el('claim-notif-area'); area.innerHTML = '';
+  const pageDiv = makeNotif(`<button class="btn btn-sm btn-outline" onclick="this.closest('.claim-notif').remove()">✕</button>`);
+  area.appendChild(pageDiv);
+
   clearTimeout(claimNotifTimer);
-  claimNotifTimer = setTimeout(() => div.remove(), 10000);
+  claimNotifTimer = setTimeout(() => { fixedDiv.remove(); pageDiv.remove(); }, 10000);
 }
 
 // ── Host: Draw number ──
@@ -677,7 +722,7 @@ window.hostTerminateGame = async function() {
 // ── Player: Render game ──
 function renderPlayerGame(state) {
   const called     = state.calledNumbers || [];
-  const ticket     = (state.tickets && state.tickets[myId])  || [];
+  const ticket     = ticketToArray(state.tickets && state.tickets[myId]);
   const strikes    = (state.strikes  && state.strikes[myId]) || [];
   const milestones = state.milestones || {};
   const struckSet  = new Set(strikes);

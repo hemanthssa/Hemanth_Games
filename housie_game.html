@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tambola — Housie Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink: #e91e8c;
+    --pink-light: #fce4f3;
+    --pink-dark: #b0006a;
+    --gold: #f5a623;
+    --gold-light: #fff8e7;
+    --green: #27ae60;
+    --green-light: #eafaf1;
+    --purple: #8b5cf6;
+    --purple-light: #ede9fe;
+    --blue: #2196f3;
+    --blue-light: #e3f2fd;
+    --red: #e53935;
+    --bg: #fff0f9;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #888;
+    --radius: 14px;
+    --shadow: 0 4px 24px rgba(233,30,140,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  h1, h2, h3 { font-family: 'Baloo 2', cursive; }
+
+  /* ── LANDING ── */
+  #landing {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, #ffe0f5 0%, #fce4f3 50%, #e8d5ff 100%);
+  }
+  #landing h1 { font-size: clamp(2.4rem, 7vw, 4rem); color: var(--pink); letter-spacing: -1px; }
+  #landing p { font-size: 1.1rem; color: #666; margin: 0.5rem 0 2.5rem; }
+  .role-cards { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+  .role-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 2rem 2.5rem;
+    cursor: pointer;
+    box-shadow: 0 8px 32px rgba(233,30,140,0.15);
+    transition: transform .2s, box-shadow .2s;
+    width: 220px;
+  }
+  .role-card:hover { transform: translateY(-6px); box-shadow: 0 16px 40px rgba(233,30,140,0.25); }
+  .role-card .icon { font-size: 3rem; margin-bottom: 1rem; }
+  .role-card h2 { font-size: 1.4rem; color: var(--pink); margin-bottom: .4rem; }
+  .role-card p { font-size: .85rem; color: #888; }
+
+  /* ── SHARED NAV ── */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+  .top-bar {
+    background: var(--pink);
+    color: #fff;
+    padding: .8rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .top-bar h1 { font-size: 1.5rem; letter-spacing: -.5px; }
+  .top-bar .badge {
+    background: rgba(255,255,255,0.25);
+    border-radius: 20px;
+    padding: .3rem .9rem;
+    font-size: .82rem;
+    font-weight: 700;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .55rem 1.2rem;
+    border-radius: 10px; border: none; cursor: pointer;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: .9rem;
+    transition: filter .15s, transform .1s;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: scale(.97); }
+  .btn-pink { background: var(--pink); color: #fff; }
+  .btn-outline { background: #fff; color: var(--pink); border: 2px solid var(--pink); }
+  .btn-gold { background: var(--gold); color: #fff; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-sm { padding: .35rem .8rem; font-size: .8rem; }
+  .btn-lg { padding: .8rem 2rem; font-size: 1.1rem; border-radius: 14px; }
+
+  main { flex: 1; padding: 1.5rem; max-width: 960px; margin: 0 auto; width: 100%; }
+
+  /* ── CALLED NUMBERS BOARD ── */
+  .called-board {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 1.2rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+  }
+  .called-board h3 { font-size: 1rem; color: var(--muted); margin-bottom: .8rem; font-family: 'Nunito', sans-serif; font-weight: 700; }
+  .num-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 4px;
+  }
+  .num-cell {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(.65rem, 2vw, .85rem);
+    font-weight: 700;
+    background: #f5f5f5;
+    color: #bbb;
+    transition: background .3s, color .3s;
+  }
+  .num-cell.called { background: var(--pink); color: #fff; }
+
+  /* ── HOST DRAW ZONE ── */
+  .draw-zone {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  .big-number {
+    font-family: 'Baloo 2', cursive;
+    font-size: clamp(4rem, 16vw, 7rem);
+    font-weight: 800;
+    color: var(--pink);
+    line-height: 1;
+    min-height: 1.2em;
+    display: flex; align-items: center; justify-content: center;
+    animation: pop .3s ease;
+  }
+  @keyframes pop { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  .recent-strip {
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  }
+  .recent-pill {
+    background: var(--pink-light);
+    color: var(--pink);
+    border-radius: 20px;
+    padding: .25rem .7rem;
+    font-weight: 700;
+    font-size: .85rem;
+  }
+  .draw-controls { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+
+  /* ── MILESTONES ── */
+  .milestones { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .milestone-card {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+    box-shadow: var(--shadow);
+    border-left: 5px solid #ddd;
+    display: flex; flex-direction: column; gap: .4rem;
+  }
+  .milestone-card.won { border-left-color: var(--green); background: var(--green-light); }
+  .milestone-card .ms-title { font-weight: 700; font-size: .9rem; }
+  .milestone-card .ms-winner { font-size: .82rem; color: var(--green); font-weight: 700; }
+  .milestone-card .ms-btn { margin-top: .3rem; }
+
+  /* colors per milestone */
+  .ms0 { border-left-color: var(--gold); }
+  .ms1 { border-left-color: var(--purple); }
+  .ms2 { border-left-color: var(--blue); }
+  .ms3 { border-left-color: var(--pink); }
+  .ms4 { border-left-color: #ff7043; }
+  .ms5 { border-left-color: var(--green); }
+
+  /* ── PLAYER TICKET ── */
+  .ticket-wrapper { background: #fff; border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); margin-bottom: 1.5rem; }
+  .ticket {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 5px;
+    margin-bottom: 1rem;
+  }
+  .ticket-cell {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800;
+    font-size: clamp(.75rem, 2.5vw, 1.1rem);
+    font-family: 'Baloo 2', cursive;
+    background: #fce4f3;
+    color: var(--pink-dark);
+    user-select: none;
+    position: relative;
+    transition: background .2s;
+  }
+  .ticket-cell.empty { background: #f9f9f9; color: transparent; }
+  .ticket-cell.struck {
+    background: var(--pink);
+    color: #fff;
+  }
+  .ticket-cell.struck::after {
+    content: '✕';
+    position: absolute;
+    font-size: 1.4em;
+    font-weight: 900;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── TICKET BUILDER ── */
+  .ticket-builder { margin-bottom: 1.5rem; }
+  .ticket-input-grid {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 5px;
+    margin-bottom: 1rem;
+  }
+  .ticket-input-grid input {
+    width: 100%;
+    aspect-ratio: 1;
+    text-align: center;
+    border: 2px solid #fcd;
+    border-radius: 8px;
+    font-size: clamp(.7rem, 2.5vw, 1rem);
+    font-weight: 700;
+    font-family: 'Baloo 2', cursive;
+    color: var(--pink-dark);
+    background: #fce4f3;
+    outline: none;
+    padding: 0;
+  }
+  .ticket-input-grid input:focus { border-color: var(--pink); background: #fff; }
+  .ticket-input-grid input.blank { background: #f5f5f5; border-color: #eee; }
+
+  /* ── CLAIM SECTION ── */
+  .claim-section { display: flex; flex-direction: column; gap: .8rem; }
+  .claim-row { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+  .claim-row .ms-label { flex: 1; min-width: 160px; font-weight: 600; font-size: .9rem; }
+  .claim-row .ms-status { font-size: .8rem; }
+  .status-won { color: var(--green); font-weight: 700; }
+  .status-open { color: var(--muted); }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed; top: 1.5rem; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: #fff;
+    padding: .75rem 1.5rem; border-radius: 30px;
+    font-weight: 700; font-size: .95rem;
+    opacity: 0; pointer-events: none;
+    transition: opacity .3s;
+    z-index: 9999;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── WINNER MODAL ── */
+  #winner-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  #winner-overlay.show { display: flex; }
+  .winner-box {
+    background: #fff;
+    border-radius: 24px;
+    padding: 2.5rem;
+    max-width: 380px;
+    width: 90%;
+    text-align: center;
+    animation: pop .4s ease;
+  }
+  .winner-box .trophy { font-size: 4rem; margin-bottom: .5rem; }
+  .winner-box h2 { font-size: 1.8rem; color: var(--pink); margin-bottom: .3rem; }
+  .winner-box p { color: #555; margin-bottom: 1.5rem; }
+  .confetti-row { display: flex; gap: 8px; justify-content: center; font-size: 1.5rem; }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: .78rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: .6rem;
+  }
+
+  /* auto-draw timer bar */
+  .timer-bar-wrap { width: 100%; height: 6px; background: #f5f5f5; border-radius: 3px; overflow: hidden; }
+  .timer-bar { height: 100%; background: var(--pink); border-radius: 3px; transition: width linear; }
+
+  /* speed select */
+  .speed-row { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; justify-content: center; }
+  .speed-row label { font-size: .85rem; color: var(--muted); font-weight: 600; }
+  .speed-row select {
+    border: 2px solid #fcd; border-radius: 8px; padding: .3rem .6rem;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: .85rem;
+    color: var(--pink); background: #fff; outline: none; cursor: pointer;
+  }
+
+  @media (max-width: 500px) {
+    .milestones { grid-template-columns: 1fr 1fr; }
+    .role-card { width: 160px; padding: 1.4rem 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="landing">
+  <div style="font-size:3.5rem;margin-bottom:.5rem;">🎉</div>
+  <h1>Tambola</h1>
+  <p>The classic Housie party game — now digital!</p>
+  <div class="role-cards">
+    <div class="role-card" onclick="startHost()">
+      <div class="icon">🎙️</div>
+      <h2>Host</h2>
+      <p>Draw numbers & manage the game</p>
+    </div>
+    <div class="role-card" onclick="startPlayer()">
+      <div class="icon">🎟️</div>
+      <h2>Player</h2>
+      <p>Enter your ticket & play along</p>
+    </div>
+  </div>
+  <p style="margin-top:2rem;font-size:.8rem;color:#bbb;">Numbers 1–90 · 6 milestones · No server needed</p>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="top-bar">
+    <h1 id="app-title">🎉 Tambola</h1>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+      <span class="badge" id="mode-badge">Host</span>
+      <button class="btn btn-outline btn-sm" onclick="goHome()">← Home</button>
+    </div>
+  </div>
+
+  <main id="main-host" style="display:none">
+    <!-- Called board -->
+    <div class="called-board">
+      <h3>Numbers Called (<span id="called-count">0</span>/90)</h3>
+      <div class="num-grid" id="num-grid"></div>
+    </div>
+
+    <!-- Draw zone -->
+    <div class="draw-zone">
+      <div class="big-number" id="big-num">—</div>
+      <div class="recent-strip" id="recent-strip"></div>
+      <div class="speed-row">
+        <label>Auto-draw every</label>
+        <select id="speed-sel">
+          <option value="0">Manual only</option>
+          <option value="5000" selected>5 sec</option>
+          <option value="8000">8 sec</option>
+          <option value="12000">12 sec</option>
+          <option value="20000">20 sec</option>
+        </select>
+      </div>
+      <div class="timer-bar-wrap" id="timer-bar-wrap" style="display:none">
+        <div class="timer-bar" id="timer-bar" style="width:100%"></div>
+      </div>
+      <div class="draw-controls">
+        <button class="btn btn-pink btn-lg" id="draw-btn" onclick="drawNumber()">🎲 Draw Number</button>
+        <button class="btn btn-outline btn-lg" id="auto-btn" onclick="toggleAuto()">▶ Auto Draw</button>
+      </div>
+    </div>
+
+    <!-- Milestones -->
+    <div class="section-label">Milestones</div>
+    <div class="milestones" id="milestones-host"></div>
+
+    <!-- Winner claim input -->
+    <div class="ticket-wrapper" id="winner-claim-box">
+      <div class="section-label">Record a Winner</div>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:.8rem;">When someone shouts a claim, enter their name and select the milestone.</p>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;">
+        <input id="winner-name" type="text" placeholder="Winner's name" style="flex:1;min-width:150px;padding:.55rem .9rem;border:2px solid #fcd;border-radius:10px;font-family:'Nunito',sans-serif;font-size:.9rem;outline:none;">
+        <select id="winner-ms" style="padding:.55rem .9rem;border:2px solid #fcd;border-radius:10px;font-family:'Nunito',sans-serif;font-size:.9rem;color:var(--pink);outline:none;">
+          <option value="">— Select Milestone —</option>
+        </select>
+        <button class="btn btn-gold" onclick="recordWinner()">✓ Record</button>
+      </div>
+    </div>
+  </main>
+
+  <main id="main-player" style="display:none">
+    <!-- Called board -->
+    <div class="called-board">
+      <h3>Numbers Called (<span id="p-called-count">0</span>/90)</h3>
+      <div class="num-grid" id="p-num-grid"></div>
+    </div>
+
+    <!-- Ticket builder (shown before game) -->
+    <div id="ticket-setup" class="ticket-wrapper">
+      <div class="section-label" style="margin-bottom:.3rem">Enter Your Ticket Numbers</div>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:1rem;">Fill in the numbers from your physical ticket row by row (left to right). Leave cells blank for empty squares.</p>
+      <div class="ticket-input-grid" id="ticket-inputs"></div>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+        <button class="btn btn-pink" onclick="buildTicket()">✓ Confirm Ticket</button>
+        <button class="btn btn-outline" onclick="clearTicketInputs()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Live ticket (shown after confirm) -->
+    <div id="ticket-live" class="ticket-wrapper" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+        <div class="section-label" style="margin-bottom:0">Your Ticket</div>
+        <button class="btn btn-outline btn-sm" onclick="resetTicket()">✎ Edit Ticket</button>
+      </div>
+      <div class="ticket" id="live-ticket"></div>
+      <div style="display:flex;gap:1rem;font-size:.82rem;color:var(--muted);flex-wrap:wrap;">
+        <span>Struck: <strong id="struck-count">0</strong></span>
+        <span>Remaining: <strong id="remaining-count">0</strong></span>
+      </div>
+    </div>
+
+    <!-- Milestones for player -->
+    <div id="player-claim-section" style="display:none">
+      <div class="ticket-wrapper">
+        <div class="section-label">Claim a Milestone 🏆</div>
+        <p style="font-size:.83rem;color:var(--muted);margin-bottom:1rem;">When you achieve a milestone, shout it and click Claim. The host will verify!</p>
+        <div class="claim-section" id="claim-section"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Winner modal -->
+<div id="winner-overlay">
+  <div class="winner-box">
+    <div class="trophy">🏆</div>
+    <h2 id="w-title">Winner!</h2>
+    <p id="w-body"></p>
+    <div class="confetti-row">🎉 🥳 🎊 🎈 🎁</div>
+    <div style="margin-top:1.5rem;">
+      <button class="btn btn-pink" onclick="closeWinner()">Awesome! Continue</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MILESTONES = [
+  { id: 'early5',   label: 'Early Five',    desc: 'First to strike any 5 numbers',               color: '#f5a623' },
+  { id: 'middle',   label: 'Middle Number', desc: 'First to strike the center cell (row 2, col 5)', color: '#8b5cf6' },
+  { id: 'top',      label: 'Top Line',      desc: 'First to strike all numbers in row 1',          color: '#2196f3' },
+  { id: 'mid-line', label: 'Middle Line',   desc: 'First to strike all numbers in row 2',          color: '#e91e8c' },
+  { id: 'bot-line', label: 'Bottom Line',   desc: 'First to strike all numbers in row 3',          color: '#ff7043' },
+  { id: 'full',     label: 'Full House',    desc: 'First to strike ALL numbers on the ticket',     color: '#27ae60' },
+];
+
+let mode = '';
+let calledNums = new Set();
+let allNums = Array.from({length:90},(_,i)=>i+1);
+let remaining = [...allNums];
+let recentList = [];
+let milestoneWinners = {}; // id -> winner name
+let autoTimer = null;
+let autoInterval = 5000;
+
+// player ticket state
+// 3 rows × 9 cols, null = blank
+let ticketData = []; // flat 27 values
+let ticketNumbers = new Set();
+let struckNumbers = new Set();
+let claimedMilestones = {};
+
+function goHome() {
+  stopAuto();
+  document.getElementById('landing').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function startHost() {
+  mode = 'host';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('app-title').textContent = '🎙️ Tambola — Host';
+  document.getElementById('mode-badge').textContent = 'Host';
+  document.getElementById('main-host').style.display = 'block';
+  document.getElementById('main-player').style.display = 'none';
+  initHost();
+}
+
+function startPlayer() {
+  mode = 'player';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('app-title').textContent = '🎟️ Tambola — Player';
+  document.getElementById('mode-badge').textContent = 'Player';
+  document.getElementById('main-host').style.display = 'none';
+  document.getElementById('main-player').style.display = 'block';
+  initPlayer();
+}
+
+/* ── HOST ── */
+function initHost() {
+  calledNums = new Set();
+  remaining = [...allNums];
+  recentList = [];
+  milestoneWinners = {};
+  buildNumGrid('num-grid');
+  renderMilestonesHost();
+  document.getElementById('big-num').textContent = '—';
+  document.getElementById('recent-strip').innerHTML = '';
+  document.getElementById('called-count').textContent = '0';
+
+  // populate milestone select
+  const sel = document.getElementById('winner-ms');
+  sel.innerHTML = '<option value="">— Select Milestone —</option>';
+  MILESTONES.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id; o.textContent = m.label;
+    sel.appendChild(o);
+  });
+
+  const speedSel = document.getElementById('speed-sel');
+  speedSel.onchange = () => {
+    autoInterval = parseInt(speedSel.value) || 0;
+    if (autoTimer) { stopAuto(); startAuto(); }
+  };
+  shuffle(remaining);
+}
+
+function buildNumGrid(id) {
+  const g = document.getElementById(id);
+  g.innerHTML = '';
+  for (let i = 1; i <= 90; i++) {
+    const d = document.createElement('div');
+    d.className = 'num-cell';
+    d.id = (id === 'num-grid' ? 'h' : 'p') + 'cell' + i;
+    d.textContent = i;
+    g.appendChild(d);
+  }
+}
+
+function drawNumber() {
+  if (remaining.length === 0) { showToast('All 90 numbers have been called!'); return; }
+  const n = remaining.pop();
+  calledNums.add(n);
+  recentList.unshift(n);
+  if (recentList.length > 6) recentList.pop();
+
+  document.getElementById('big-num').textContent = n;
+  document.getElementById('big-num').style.animation = 'none';
+  void document.getElementById('big-num').offsetWidth;
+  document.getElementById('big-num').style.animation = '';
+
+  document.getElementById('called-count').textContent = calledNums.size;
+  document.getElementById('hcell' + n).classList.add('called');
+
+  const strip = document.getElementById('recent-strip');
+  strip.innerHTML = recentList.map(x => `<span class="recent-pill">${x}</span>`).join('');
+
+  // update player board if same session (unlikely but safety)
+  const pc = document.getElementById('pcell' + n);
+  if (pc) pc.classList.add('called');
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function toggleAuto() {
+  if (autoTimer) { stopAuto(); }
+  else { startAuto(); }
+}
+
+function startAuto() {
+  if (!autoInterval) { showToast('Select an auto-draw speed first'); return; }
+  const btn = document.getElementById('auto-btn');
+  btn.textContent = '⏹ Stop Auto';
+  btn.style.background = '#ff7043'; btn.style.color = '#fff'; btn.style.border = 'none';
+  document.getElementById('draw-btn').disabled = true;
+  document.getElementById('timer-bar-wrap').style.display = 'block';
+  runAutoStep();
+}
+
+function runAutoStep() {
+  drawNumber();
+  if (remaining.length === 0) { stopAuto(); return; }
+  animateBar(autoInterval);
+  autoTimer = setTimeout(runAutoStep, autoInterval);
+}
+
+function animateBar(duration) {
+  const bar = document.getElementById('timer-bar');
+  bar.style.transition = 'none'; bar.style.width = '100%';
+  void bar.offsetWidth;
+  bar.style.transition = `width ${duration}ms linear`;
+  bar.style.width = '0%';
+}
+
+function stopAuto() {
+  clearTimeout(autoTimer); autoTimer = null;
+  const btn = document.getElementById('auto-btn');
+  btn.textContent = '▶ Auto Draw';
+  btn.style.background = ''; btn.style.color = ''; btn.style.border = '';
+  document.getElementById('draw-btn').disabled = false;
+  document.getElementById('timer-bar-wrap').style.display = 'none';
+}
+
+function renderMilestonesHost() {
+  const box = document.getElementById('milestones-host');
+  box.innerHTML = '';
+  MILESTONES.forEach((m, i) => {
+    const won = milestoneWinners[m.id];
+    const d = document.createElement('div');
+    d.className = `milestone-card ms${i}${won ? ' won' : ''}`;
+    d.innerHTML = `
+      <div class="ms-title" style="color:${m.color}">${m.label}</div>
+      <div style="font-size:.78rem;color:var(--muted)">${m.desc}</div>
+      ${won ? `<div class="ms-winner">🏆 ${won}</div>` : '<div class="ms-winner" style="color:var(--muted)">— Open —</div>'}
+    `;
+    box.appendChild(d);
+  });
+}
+
+function recordWinner() {
+  const name = document.getElementById('winner-name').value.trim();
+  const msId = document.getElementById('winner-ms').value;
+  if (!name) { showToast('Enter the winner\'s name'); return; }
+  if (!msId) { showToast('Select a milestone'); return; }
+  const ms = MILESTONES.find(m => m.id === msId);
+  if (milestoneWinners[msId]) { showToast(`${ms.label} already claimed by ${milestoneWinners[msId]}`); return; }
+  milestoneWinners[msId] = name;
+  renderMilestonesHost();
+  document.getElementById('winner-name').value = '';
+  document.getElementById('winner-ms').value = '';
+  showWinner(name, ms.label);
+}
+
+/* ── PLAYER ── */
+function initPlayer() {
+  calledNums = new Set();
+  ticketData = Array(27).fill(null);
+  ticketNumbers = new Set();
+  struckNumbers = new Set();
+  claimedMilestones = {};
+  buildNumGrid('p-num-grid');
+  buildTicketInputs();
+  document.getElementById('p-called-count').textContent = '0';
+  document.getElementById('ticket-live').style.display = 'none';
+  document.getElementById('ticket-setup').style.display = 'block';
+  document.getElementById('player-claim-section').style.display = 'none';
+  renderClaimSection();
+}
+
+function buildTicketInputs() {
+  const grid = document.getElementById('ticket-inputs');
+  grid.innerHTML = '';
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 9; c++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = 1; inp.max = 90;
+      inp.placeholder = '';
+      inp.dataset.idx = r * 9 + c;
+      inp.oninput = () => {
+        inp.classList.toggle('blank', !inp.value);
+        // auto-advance
+        if (inp.value.length >= 2) {
+          const next = grid.querySelectorAll('input')[r * 9 + c + 1];
+          if (next) next.focus();
+        }
+      };
+      grid.appendChild(inp);
+    }
+  }
+}
+
+function clearTicketInputs() {
+  document.querySelectorAll('#ticket-inputs input').forEach(i => { i.value = ''; i.classList.remove('blank'); });
+}
+
+function buildTicket() {
+  const inputs = document.querySelectorAll('#ticket-inputs input');
+  const vals = [];
+  const nums = new Set();
+  let filledCount = 0;
+  let valid = true;
+
+  inputs.forEach((inp, idx) => {
+    const v = inp.value.trim();
+    if (v === '') { vals.push(null); return; }
+    const n = parseInt(v);
+    if (isNaN(n) || n < 1 || n > 90) { valid = false; showToast(`Invalid number: "${v}"`); return; }
+    if (nums.has(n)) { valid = false; showToast(`Duplicate number: ${n}`); return; }
+    nums.add(n); vals.push(n); filledCount++;
+  });
+
+  if (!valid) return;
+  if (filledCount < 1) { showToast('Enter at least 1 number'); return; }
+
+  // validate row counts (each row must have exactly 5 numbers) — soft warning
+  for (let r = 0; r < 3; r++) {
+    const rowNums = vals.slice(r*9, r*9+9).filter(x => x !== null);
+    if (rowNums.length !== 5) {
+      if (!confirm(`Row ${r+1} has ${rowNums.length} numbers (should be 5). Continue anyway?`)) return;
+    }
+  }
+
+  ticketData = vals;
+  ticketNumbers = nums;
+  struckNumbers = new Set();
+  claimedMilestones = {};
+
+  renderLiveTicket();
+  document.getElementById('ticket-setup').style.display = 'none';
+  document.getElementById('ticket-live').style.display = 'block';
+  document.getElementById('player-claim-section').style.display = 'block';
+  renderClaimSection();
+  showToast('Ticket confirmed! 🎟️');
+}
+
+function resetTicket() {
+  document.getElementById('ticket-setup').style.display = 'block';
+  document.getElementById('ticket-live').style.display = 'none';
+  document.getElementById('player-claim-section').style.display = 'none';
+}
+
+function renderLiveTicket() {
+  const t = document.getElementById('live-ticket');
+  t.innerHTML = '';
+  ticketData.forEach((val, idx) => {
+    const cell = document.createElement('div');
+    const struck = val !== null && struckNumbers.has(val);
+    cell.className = `ticket-cell${val === null ? ' empty' : ''}${struck ? ' struck' : ''}`;
+    if (val !== null) {
+      cell.textContent = val;
+      cell.onclick = () => manualStrike(val, idx);
+    }
+    t.appendChild(cell);
+  });
+  const total = [...ticketNumbers].length;
+  const s = struckNumbers.size;
+  document.getElementById('struck-count').textContent = s;
+  document.getElementById('remaining-count').textContent = total - s;
+}
+
+function manualStrike(num, idx) {
+  if (struckNumbers.has(num)) { struckNumbers.delete(num); }
+  else { struckNumbers.add(num); }
+  renderLiveTicket();
+  renderClaimSection();
+}
+
+function renderClaimSection() {
+  const box = document.getElementById('claim-section');
+  if (!box) return;
+  box.innerHTML = '';
+  MILESTONES.forEach(m => {
+    const won = claimedMilestones[m.id];
+    const eligible = checkMilestone(m.id);
+    const row = document.createElement('div');
+    row.className = 'claim-row';
+    row.innerHTML = `
+      <div class="ms-label">${m.label}<br><span style="font-size:.75rem;color:var(--muted);font-weight:400">${m.desc}</span></div>
+      ${won
+        ? `<span class="ms-status status-won">✓ Claimed!</span>`
+        : `<button class="btn btn-sm ${eligible ? 'btn-pink' : 'btn-outline'}" onclick="claimMilestone('${m.id}')" ${!eligible ? '' : ''}>Claim!</button>`
+      }
+    `;
+    box.appendChild(row);
+  });
+}
+
+function checkMilestone(id) {
+  if (!ticketData.length) return false;
+  const rowNums = (r) => ticketData.slice(r*9, r*9+9).filter(x => x !== null);
+  const rowStruck = (r) => rowNums(r).every(n => struckNumbers.has(n));
+  switch(id) {
+    case 'early5':   return struckNumbers.size >= 5;
+    case 'middle': {
+      // center of row 2 = positions 9..17, middle = pos 13 = index 13
+      // find the actual 5th number in row 2
+      const r1 = ticketData.slice(9, 18).filter(x => x !== null);
+      const mid = r1[Math.floor(r1.length / 2)];
+      return mid !== null && mid !== undefined && struckNumbers.has(mid);
+    }
+    case 'top':      return rowStruck(0);
+    case 'mid-line': return rowStruck(1);
+    case 'bot-line': return rowStruck(2);
+    case 'full':     return [...ticketNumbers].every(n => struckNumbers.has(n));
+    default: return false;
+  }
+}
+
+function claimMilestone(id) {
+  if (claimedMilestones[id]) { showToast('Already claimed!'); return; }
+  const ms = MILESTONES.find(m => m.id === id);
+  claimedMilestones[id] = true;
+  renderClaimSection();
+  showToast(`🏆 ${ms.label} claimed! Shout it to the host!`);
+}
+
+/* ── SHARED UTILS ── */
+function showToast(msg, duration = 2800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function showWinner(name, milestone) {
+  document.getElementById('w-title').textContent = `🏆 ${milestone}!`;
+  document.getElementById('w-body').textContent = `${name} wins the ${milestone} milestone! 🎉`;
+  document.getElementById('winner-overlay').classList.add('show');
+}
+
+function closeWinner() {
+  document.getElementById('winner-overlay').classList.remove('show');
+}
+</script>
+</body>
+</html>

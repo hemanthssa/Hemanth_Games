@@ -575,8 +575,8 @@ function handleStateChange(state) {
   const cur = document.querySelector('.screen.active')?.id;
   if (phase === 'lobby') {
     _ignoringEnded = false;
-    // If player is no longer in the players list (host started fresh), send them to login
-    if (myRole === 'player' && myId && (!state.players || !state.players[myId])) {
+    // If player is no longer in the players list (edge case: host hard-reset), send them to login
+    if (myRole === 'player' && myId && myNick && (!state.players || !state.players[myId])) {
       el('inp-nick').value = myNick; // pre-fill their name so they just click Join
       el('pwd-field').style.display = 'none';
       el('login-title').textContent = '🎟️ Re-join Game';
@@ -974,25 +974,24 @@ window.hostRemovePlayer = async function(pid) {
 window.goToLobby = async function() {
   _ignoringEnded = true;
   if (myRole === 'host') {
-    // Only keep the host entry; everyone else re-registers fresh
-    const hostPlayerData = {};
-    if (myId) {
-      const snap = await get(PLAYER_REF(myId));
-      const me = snap.val();
-      if (me) hostPlayerData[myId] = me;
+    // Keep all non-kicked players in Firebase so they land in lobby without re-joining
+    const snap = await get(ROOM_REF());
+    const cur = snap.val();
+    const keepPlayers = { [myId]: { nick:myNick, role:'host', connected:true, joinedAt:Date.now() } };
+    if (cur && cur.players) {
+      Object.entries(cur.players).forEach(([pid, p]) => {
+        if (pid !== myId && !p.kicked) keepPlayers[pid] = p;
+      });
     }
     await set(ROOM_REF(), {
       phase:'lobby', hostId:myId,
-      players: hostPlayerData,
+      players: keepPlayers,
       calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null
     });
-    // Firebase listener routes host to s-lobby; players detect absence → go to login
+    // Firebase listener routes everyone to s-lobby via handleStateChange
   } else {
-    // Player: go to login so they can re-register fresh
-    el('inp-nick').value = myNick;
-    el('pwd-field').style.display = 'none';
-    el('login-title').textContent = '🎟️ Re-join Game';
-    showScreen('s-login');
+    // Player: show lobby directly — they're already subscribed and still in Firebase
+    showScreen('s-lobby');
   }
 };
 

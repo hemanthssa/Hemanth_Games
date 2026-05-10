@@ -282,7 +282,10 @@
       <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem;">
         At least 1 player must be online. Once started, no new players can join.
       </p>
-      <button class="btn btn-green btn-lg" id="start-btn" onclick="hostStartGame()" disabled>▶ Start Game</button>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+        <button class="btn btn-green btn-lg" id="start-btn" onclick="hostStartGame()" disabled>▶ Start Game</button>
+        <button class="btn btn-red btn-lg" onclick="hostDeclareFromLobby()">🏁 Declare &amp; End</button>
+      </div>
     </div>
     <div class="waiting-msg" id="lobby-wait-msg" style="display:none">⏳ Waiting for the host to start the game…</div>
   </main>
@@ -294,6 +297,7 @@
     <h1>🎙️ Tambola — Host</h1>
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
       <span class="badge">Host</span>
+      <button class="btn btn-gold btn-sm" onclick="hostDeclareGame()">🏁 Declare Winners</button>
       <button class="btn btn-red btn-sm" onclick="hostTerminateGame()">⏹ End Game</button>
     </div>
   </div>
@@ -471,7 +475,23 @@ window.doLogin = async function() {
     showToast('🚫 Game in progress — cannot join now'); return;
   }
 
-  myId = uid(); myNick = nick; myRole = loginRole;
+  myRole = loginRole;
+
+  // ── Deduplicate by nick: if same name already exists in players, reuse that slot ──
+  // This prevents duplicate entries when a player leaves and rejoins with the same name.
+  if (myRole === 'player' && state && state.players) {
+    const existing = Object.entries(state.players)
+      .find(([, p]) => !p.kicked && p.nick === nick && p.role === 'player');
+    if (existing) {
+      myId = existing[0]; // reuse the old Firebase slot
+    } else {
+      myId = uid();
+    }
+  } else {
+    myId = uid();
+  }
+
+  myNick = nick;
   const pd = { nick, role:myRole, connected:true, joinedAt:Date.now() };
   await set(PLAYER_REF(myId), pd);
   onDisconnect(PLAYER_REF(myId)).update({ connected:false });
@@ -493,10 +513,8 @@ window.doLogin = async function() {
   } else {
     // Player joining
     if (!state) {
-      // No room at all yet — create a minimal lobby so the listener has something to read
       await update(ROOM_REF(), { phase:'lobby' });
     } else if (state.phase === 'ended') {
-      // Room is from a finished game; show lobby instead of old end-screen
       _ignoringEnded = true;
     }
   }
@@ -564,8 +582,10 @@ function handleStateChange(state) {
     if (myRole==='host') { renderHostGame(state); if(cur!=='s-host') showScreen('s-host'); }
     else                 { renderPlayerGame(state); if(cur!=='s-player') showScreen('s-player'); }
   } else if (phase === 'ended') {
-    if (_ignoringEnded) {
-      // Newly-joined player or someone who already clicked "Go to Lobby" — stay in lobby
+    // Everyone sees the ended screen (both host and players)
+    // _ignoringEnded only applies to players joining mid-ended-state (not actively playing)
+    if (_ignoringEnded && cur === 's-login') {
+      // Newly joining player into an already-ended room — keep them in lobby
       renderLobby(state);
       if (cur !== 's-lobby') showScreen('s-lobby');
     } else {
@@ -773,9 +793,22 @@ function animateBar(dur) {
   void bar.offsetWidth; bar.style.transition=`width ${dur}ms linear`; bar.style.width='0%';
 }
 
-// ── Host: Terminate ──
+// ── Host: Declare winners from lobby (no numbers drawn yet or game abandoned) ──
+window.hostDeclareFromLobby = async function() {
+  if (!confirm('Declare game over and show results to all players?')) return;
+  await update(ROOM_REF(), { phase:'ended' });
+};
+
+// ── Host: Declare winners mid-game (show results now) ──
+window.hostDeclareGame = async function() {
+  if (!confirm('Declare winners and show the results screen to all players?')) return;
+  stopAuto();
+  await update(ROOM_REF(), { phase:'ended' });
+};
+
+// ── Host: Terminate game (same as declare, kept for back-compat) ──
 window.hostTerminateGame = async function() {
-  if (!confirm('End the game for everyone?')) return;
+  if (!confirm('End the game without declaring? Results will still be shown.')) return;
   stopAuto(); await update(ROOM_REF(), { phase:'ended' });
 };
 

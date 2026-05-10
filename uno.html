@@ -79,7 +79,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* ── GAME SCREEN ── */
 #gameScreen { background: #12121f; padding: 0; overflow: hidden; justify-content: flex-start; }
-.game-layout { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 520px; margin: 0 auto; }
+.game-layout { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 520px; margin: 0 auto; overflow: hidden; }
 
 /* Top bar */
 .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid #ffffff10; flex-shrink: 0; }
@@ -367,10 +367,10 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* ── TABLE GAME VIEW ── */
 .table-scene {
-  flex: 1; min-height: 0; position: relative; overflow: hidden;
+  flex: 1; min-height: 0; position: relative; overflow: visible;
   background: radial-gradient(ellipse at 50% 40%, #1a1a35 0%, #0e0e1c 100%);
   display: flex; align-items: center; justify-content: center;
-  padding: 8px 10px 62px;
+  padding: 55px 50px 68px;
 }
 
 /* ── Rectangular table ── */
@@ -488,19 +488,17 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .seat-card-count { font-size: 9px; font-weight: 800; color: #ffffff90; text-shadow: 0 1px 4px #000; }
 
 /* Person silhouette behind each seat */
-.seat-person {
+/* Top-down cartoon player figure — sits outside the table edge */
+.player-figure {
   position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 0;
   pointer-events: none;
-  opacity: 0.18;
-  transition: opacity .35s, filter .35s;
+  z-index: 8;
+  opacity: 0.82;
+  transition: filter .4s, opacity .4s;
 }
-.seat-person.active {
-  opacity: 0.9;
-  filter: drop-shadow(0 0 7px #FFD700) drop-shadow(0 0 18px #FFD70060);
+.player-figure.active {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px #FFD700) drop-shadow(0 0 28px #FFD70090);
 }
 .seat-avatar { position: relative; z-index: 1; }
 
@@ -2124,14 +2122,10 @@ function renderTableSeats(gs, curPid) {
     const myIsWinner = winners.includes(myId);
     const myRank     = rankings.findIndex(r=>r.id===myId);
     const myColor    = SEAT_COLORS[(myIdx<0?0:myIdx) % SEAT_COLORS.length];
-    const myPersonSvg = `<div class="seat-person ${myIsActive?'active':''}"><svg width="44" height="54" viewBox="0 0 50 62" fill="white" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="14" r="11"/><path d="M2 62 Q2 30 25 28 Q48 30 48 62Z"/></svg></div>`;
     mySeatRow.innerHTML = `
-      <div style="position:relative">
-        ${myPersonSvg}
-        <div class="my-seat-bar-avatar ${myIsActive?'active':''}"
-             style="background:${myColor}28;border-color:${myIsActive?'var(--gold)':myColor+'70'}">
-          <span style="color:${myColor}">${(myP.nick||myNick||'?')[0].toUpperCase()}</span>
-        </div>
+      <div class="my-seat-bar-avatar ${myIsActive?'active':''}"
+           style="background:${myColor}28;border-color:${myIsActive?'var(--gold)':myColor+'70'}">
+        <span style="color:${myColor}">${(myP.nick||myNick||'?')[0].toUpperCase()}</span>
       </div>
       <div>
         <div class="my-seat-bar-name">${myP.nick||myNick}${myIsActive?' 🎯':''}</div>
@@ -2249,11 +2243,23 @@ function renderTableSeats(gs, curPid) {
     seat.style.alignItems    = 'center';
     seat.style.gap = '3px';
 
-    const personSvg = `<div class="seat-person ${isActive?'active':''}"><svg width="50" height="62" viewBox="0 0 50 62" fill="white" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="14" r="11"/><path d="M2 62 Q2 30 25 28 Q48 30 48 62Z"/></svg></div>`;
+    // ── Standalone person figure (outside the table, behind the seat) ──
+    const figRotMap = { top: 180, left: -90, right: 90 };
+    const figRot = figRotMap[pos.side] || 0;
+    // Offset figure center outward from the seat so the figure's head appears AT the table edge
+    const figOX = pos.side==='left' ? -20 : pos.side==='right' ? 20 : 0;
+    const figOY = pos.side==='top'  ? -20 : 0;
+    const figEl = document.createElement('div');
+    figEl.className = 'player-figure' + (isActive?' active':'');
+    figEl.style.left = (pos.x + figOX) + 'px';
+    figEl.style.top  = (pos.y + figOY) + 'px';
+    figEl.style.transform = `translate(-50%,-50%) rotate(${figRot}deg)`;
+    figEl.innerHTML = makePersonSVG();
+    container.appendChild(figEl);
+
     seat.innerHTML = `
       ${fanHTML}
       <div style="position:relative">
-        ${personSvg}
         <div class="seat-avatar ${isActive?'active':''} ${isWinner?'won':''}"
              style="background:${bgColor}30;border-color:${isActive?'var(--gold)':bgColor+'70'}">
           <span style="color:${bgColor}">${(p.nick||'?')[0].toUpperCase()}</span>
@@ -2267,8 +2273,51 @@ function renderTableSeats(gs, curPid) {
     container.appendChild(seat);
   });
 
+  // ── My own figure (bottom of table, head pointing up toward table) ──
+  const myIsActiveFig = curPid === myId;
+  const myFig = document.createElement('div');
+  myFig.className = 'player-figure' + (myIsActiveFig ? ' active' : '');
+  myFig.style.left = (tw / 2) + 'px';
+  myFig.style.top  = (th + 14) + 'px';
+  myFig.style.transform = 'translate(-50%,-50%) rotate(0deg)';
+  myFig.innerHTML = makePersonSVG();
+  container.appendChild(myFig);
+
   // ── Direction arrows along table border ──
   renderDirectionArrows(tw, th, gs.direction||1, gs.lastReverse);
+}
+
+function makePersonSVG() {
+  // Top-down seated poker player: head at top (toward table), chair at bottom (away)
+  return `<svg width="58" height="68" viewBox="0 0 58 68" xmlns="http://www.w3.org/2000/svg">
+    <!-- Chair back arc -->
+    <path d="M5 62 Q29 71 53 62 L53 57 Q29 66 5 57 Z" fill="#8B5E3C"/>
+    <!-- Chair cushion -->
+    <ellipse cx="29" cy="55" rx="22" ry="8" fill="#A57850"/>
+    <!-- Pants / lap -->
+    <ellipse cx="29" cy="46" rx="19" ry="10" fill="#444"/>
+    <!-- Shirt / torso -->
+    <ellipse cx="29" cy="35" rx="21" ry="12" fill="#3A7BD5"/>
+    <!-- Left upper arm -->
+    <ellipse cx="9" cy="35" rx="8" ry="11" fill="#F4A460"/>
+    <!-- Right upper arm -->
+    <ellipse cx="49" cy="35" rx="8" ry="11" fill="#F4A460"/>
+    <!-- Left forearm / hand (leaning on table) -->
+    <ellipse cx="9" cy="24" rx="6" ry="5" fill="#F4A460"/>
+    <!-- Right forearm / hand -->
+    <ellipse cx="49" cy="24" rx="6" ry="5" fill="#F4A460"/>
+    <!-- Neck -->
+    <ellipse cx="29" cy="20" rx="5" ry="4" fill="#F4A460"/>
+    <!-- Head -->
+    <circle cx="29" cy="11" r="11" fill="#F4A460"/>
+    <!-- Hair cap -->
+    <path d="M18 10 Q20 2 29 1 Q38 2 40 10 Q36 6 29 6 Q22 6 18 10Z" fill="#5C3A1E"/>
+    <!-- Eyes -->
+    <circle cx="24.5" cy="9" r="1.8" fill="#2c1800"/>
+    <circle cx="33.5" cy="9" r="1.8" fill="#2c1800"/>
+    <!-- Smile -->
+    <path d="M23 14 Q29 18.5 35 14" stroke="#8B4513" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+  </svg>`;
 }
 
 function renderDirectionArrows(tw, th, direction, lastReverse) {

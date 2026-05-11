@@ -631,36 +631,101 @@ window.hostStartGame = async function() {
   const state = snap.val(); if(!state) return;
   const players = state.players || {};
   const tickets = {};
-  Object.entries(players).forEach(([pid,p]) => { if(p.role!=='host') tickets[pid] = generateRandomTicket(); });
+  const usedTickets = new Set();
+  Object.entries(players).forEach(([pid,p]) => {
+    if (p.role !== 'host') {
+      let ticket, key;
+      do { ticket = generateRandomTicket(); key = JSON.stringify(ticket); } while (usedTickets.has(key));
+      usedTickets.add(key);
+      tickets[pid] = ticket;
+    }
+  });
   await update(ROOM_REF(), { phase:'playing', calledNumbers:[], strikes:{}, milestones:{}, lastClaim:null, tickets });
   showToast('Game started! 🎉');
 };
 
 // ── Ticket generation ──
-// Returns a 27-element integer array: 0 = empty cell, 1-90 = the number.
-// Using 0 (not null) so Firebase preserves every slot — Firebase silently drops
-// null/undefined from arrays/objects, which would destroy the grid layout.
-// Structure: 3 rows × 9 columns. 5 numbers per row, placed at random columns.
-// Middle row (row index 1): one number is ALWAYS forced into column index 4
-// (= column 5 when counting from 1) — required for the Middle Number milestone.
-function generateRandomTicket() {
-  const pool = shuffle(Array.from({length:90}, (_,i) => i+1));
-  const chosen = pool.slice(0, 15);
-  const rows = [chosen.slice(0,5), chosen.slice(5,10), chosen.slice(10,15)];
-  const data = Array(27).fill(0); // 0 = empty
-  rows.forEach((nums, r) => {
-    const avail = [0,1,2,3,4,5,6,7,8];
-    let cols;
-    if (r === 1) {
-      // Force column 4 for Middle Number milestone guarantee
-      const rest = shuffle(avail.filter(c => c !== 4));
-      cols = [4, ...rest.slice(0,4)].sort((a,b) => a-b);
-    } else {
-      cols = shuffle([...avail]).slice(0,5).sort((a,b) => a-b);
-    }
-    nums.forEach((n, k) => { data[r*9 + cols[k]] = n; });
+// Standard Tambola/Housie rules:
+//   • 3 rows × 9 columns, 15 numbers total, exactly 5 per row.
+//   • Column bands: col0=1-9, col1=10-19, …, col8=80-90.
+//   • Each band contributes 1–3 numbers to the ticket.
+//   • Numbers are sorted ascending within each column (top→bottom).
+//   • Row 2 (middle), column 5 (col index 4, band 40-49) is ALWAYS filled.
+
+// Step A: decide how many numbers each column (band) contributes.
+// 9 values in [1,3] summing to 15.
+function generateColumnCounts() {
+  const counts = Array(9).fill(1); // base: 1 each = sum 9
+  let remaining = 6;               // need to distribute 6 more (each col max +2)
+  const order = shuffle([0,1,2,3,4,5,6,7,8]);
+  for (let i = 0; i < 9 && remaining > 0; i++) {
+    const j = order[i];
+    const maxAdd = Math.min(2, remaining);
+    const minAdd = Math.max(0, remaining - 2 * (8 - i)); // guarantee we can finish
+    const add = minAdd + Math.floor(Math.random() * (maxAdd - minAdd + 1));
+    counts[j] += add;
+    remaining -= add;
+  }
+  return counts; // sum = 15, each in [1,3]
+}
+
+// Step B: assign columns to rows so every row has exactly 5, and
+// row 1 (middle row) always contains col 4.
+function tryAssignRows(counts) {
+  // Reserve one slot of col 4 for row 1; put the rest in the pool.
+  const pool = [];
+  counts.forEach((c, j) => {
+    const n = (j === 4) ? c - 1 : c;
+    for (let k = 0; k < n; k++) pool.push(j);
   });
-  return data; // e.g. [0,15,0,0,37,0,0,62,0, ...]
+  // pool has 14 entries: row0 gets 5, row1Extra gets 4, row2 gets 5.
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const s = shuffle([...pool]);
+    const row0 = s.slice(0, 5);
+    const row1 = [4, ...s.slice(5, 9)]; // col 4 always in middle row
+    const row2 = s.slice(9, 14);
+    // Each row must have 5 distinct columns.
+    if (
+      new Set(row0).size === 5 &&
+      new Set(row1).size === 5 &&
+      new Set(row2).size === 5
+    ) {
+      const mask = Array.from({length:3}, () => Array(9).fill(0));
+      [row0, row1, row2].forEach((row, r) => row.forEach(j => { mask[r][j] = 1; }));
+      return mask;
+    }
+  }
+  return null;
+}
+
+// Step C: build the 27-element ticket array.
+function generateRandomTicket() {
+  const BANDS = [
+    [1,9],[10,19],[20,29],[30,39],[40,49],
+    [50,59],[60,69],[70,79],[80,90]
+  ];
+  for (let outer = 0; outer < 100; outer++) {
+    const counts = generateColumnCounts();
+    // Pick numbers for each column from its band, sorted ascending.
+    const colNums = BANDS.map(([lo, hi], col) => {
+      const pool = [];
+      for (let n = lo; n <= hi; n++) pool.push(n);
+      return shuffle(pool).slice(0, counts[col]).sort((a, b) => a - b);
+    });
+    const mask = tryAssignRows(counts);
+    if (!mask) continue;
+    // Fill the 27-element array: numbers sorted top-to-bottom within each column.
+    const data = Array(27).fill(0);
+    for (let col = 0; col < 9; col++) {
+      let ni = 0;
+      for (let row = 0; row < 3; row++) {
+        if (mask[row][col]) data[row * 9 + col] = colNums[col][ni++];
+      }
+    }
+    if (data[13] === 0) continue; // safety: middle cell must be filled
+    return data;
+  }
+  return Array(27).fill(0); // should never happen
 }
 
 // Safely read ticket from Firebase state into a 27-element int array (0=empty).

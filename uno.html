@@ -2342,54 +2342,42 @@ function makePersonSVG(nick, cardCount, isWinner, pxW, pxH) {
   // Scale font so it is always readable: base 8px in 70px-wide SVG, scale with actual width
   const baseFont = Math.max(7, Math.round(8 * pxW / 70));
   const fontSize = label.length > 7 ? Math.max(6, baseFont - 1) : baseFont;
-  const countLabel = isWinner ? '\u2713' : (cardCount != null ? String(cardCount) : '');
+  const countLabel = isWinner ? '✓' : (cardCount != null ? String(cardCount) : '');
   return `<svg width="${pxW}" height="${pxH}" viewBox="0 0 70 82" xmlns="http://www.w3.org/2000/svg">
-    <!-- Chair back -->
-    <path d="M4 76 Q35 86 66 76 L66 70 Q35 80 4 70 Z" fill="#8B5E3C"/>
+    <!-- TOP-DOWN VIEW: looking from above at a seated player -->
+    <!-- Chair back (arc farthest from table, at bottom of scene) -->
+    <path d="M5 77 Q35 89 65 77 L63 71 Q35 83 7 71 Z" fill="#8B5E3C"/>
     <!-- Chair seat / cushion -->
-    <ellipse cx="35" cy="66" rx="28" ry="10" fill="#A57850"/>
-    <!-- Pants / lap area -->
-    <ellipse cx="35" cy="54" rx="24" ry="13" fill="#444444"/>
-    <!-- Shirt body -->
-    <ellipse cx="35" cy="40" rx="26" ry="16" fill="#3A7BD5"/>
-    <!-- Left shoulder/upper arm -->
-    <ellipse cx="10" cy="40" rx="9" ry="13" fill="#3A7BD5"/>
-    <!-- Right shoulder/upper arm -->
-    <ellipse cx="60" cy="40" rx="9" ry="13" fill="#3A7BD5"/>
-    <!-- Left forearm (skin, leaning forward) -->
-    <ellipse cx="10" cy="27" rx="7" ry="6" fill="#F4A460"/>
-    <!-- Right forearm -->
-    <ellipse cx="60" cy="27" rx="7" ry="6" fill="#F4A460"/>
-    <!-- Left hand -->
-    <ellipse cx="10" cy="22" rx="5" ry="4" fill="#F4A460"/>
-    <!-- Right hand -->
-    <ellipse cx="60" cy="22" rx="5" ry="4" fill="#F4A460"/>
-    <!-- Neck -->
-    <ellipse cx="35" cy="22" rx="6" ry="5" fill="#F4A460"/>
-    <!-- Head -->
-    <circle cx="35" cy="12" r="12" fill="#F4A460"/>
-    <!-- Hair -->
-    <path d="M22 11 Q24 2 35 1 Q46 2 48 11 Q43 6 35 6 Q27 6 22 11Z" fill="#4a2800"/>
-    <!-- Left eye -->
-    <circle cx="29.5" cy="10" r="2" fill="#2c1800"/>
-    <!-- Right eye -->
-    <circle cx="40.5" cy="10" r="2" fill="#2c1800"/>
-    <!-- Eye shine left -->
-    <circle cx="30.5" cy="9.2" r="0.7" fill="#fff"/>
-    <!-- Eye shine right -->
-    <circle cx="41.5" cy="9.2" r="0.7" fill="#fff"/>
-    <!-- Eyebrows -->
-    <path d="M26.5 7 Q29.5 5.5 32 7" stroke="#4a2800" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-    <path d="M38 7 Q40.5 5.5 43.5 7" stroke="#4a2800" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-    <!-- Smile -->
-    <path d="M28 15.5 Q35 20 42 15.5" stroke="#c47a3a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-    <!-- Shirt collar V -->
-    <path d="M28 25 L35 30 L42 25" stroke="#2a5fad" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Name on shirt: white text with dark shadow for readability -->
-    <text x="35" y="43" text-anchor="middle" dominant-baseline="middle"
+    <ellipse cx="35" cy="65" rx="27" ry="11" fill="#A57850"/>
+    <!-- Lap / thighs (pants from above) -->
+    <ellipse cx="35" cy="52" rx="22" ry="14" fill="#444444"/>
+    <!-- Torso / shirt from above — shoulders are the widest part -->
+    <ellipse cx="35" cy="36" rx="26" ry="18" fill="#3A7BD5"/>
+    <!-- Left arm (viewed from top — elongated blob alongside body) -->
+    <ellipse cx="8"  cy="38" rx="7" ry="13" fill="#3A7BD5"/>
+    <!-- Right arm -->
+    <ellipse cx="62" cy="38" rx="7" ry="13" fill="#3A7BD5"/>
+    <!-- Left forearm / wrist (skin, reaching toward table) -->
+    <ellipse cx="7"  cy="25" rx="5" ry="5" fill="#F4A460"/>
+    <!-- Right forearm / wrist -->
+    <ellipse cx="63" cy="25" rx="5" ry="5" fill="#F4A460"/>
+    <!-- Neck (small skin-coloured oval visible between shoulders and head) -->
+    <ellipse cx="35" cy="17" rx="6" ry="5" fill="#F4A460"/>
+    <!-- Head — top view: just a circle of skin showing around the hair -->
+    <circle cx="35" cy="9" r="11" fill="#F4A460"/>
+    <!-- Hair: covers nearly the entire head as seen from directly above -->
+    <circle cx="35" cy="8.5" r="9.5" fill="#4a2800"/>
+    <!-- Hair parting line (centre) -->
+    <line x1="35" y1="0" x2="35" y2="14" stroke="#6b3a00" stroke-width="1" opacity="0.55"/>
+    <!-- Hair flow / highlight arcs to give depth -->
+    <path d="M26 4 Q35 2 44 4"    stroke="#6b3a00" stroke-width="1.2" fill="none" opacity="0.55" stroke-linecap="round"/>
+    <path d="M24 9 Q35 7 46 9"    stroke="#6b3a00" stroke-width="1"   fill="none" opacity="0.4"  stroke-linecap="round"/>
+    <path d="M25 14 Q35 12 45 14" stroke="#6b3a00" stroke-width="0.8" fill="none" opacity="0.3"  stroke-linecap="round"/>
+    <!-- Name on shirt -->
+    <text x="35" y="39" text-anchor="middle" dominant-baseline="middle"
           font-family="Arial Black, Arial, sans-serif" font-size="${fontSize}" font-weight="900"
           fill="#00000055" letter-spacing="0.2">${label}</text>
-    <text x="35" y="42" text-anchor="middle" dominant-baseline="middle"
+    <text x="35" y="38" text-anchor="middle" dominant-baseline="middle"
           font-family="Arial Black, Arial, sans-serif" font-size="${fontSize}" font-weight="900"
           fill="#ffffff" letter-spacing="0.2">${label}</text>
     <!-- Card count badge -->

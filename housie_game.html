@@ -671,6 +671,15 @@ function generateColumnCounts() {
 
 // Step B: assign columns to rows so every row has exactly 5, and
 // row 1 (middle row) always contains col 4.
+// Returns true if the sorted column list has no 3 or more consecutive columns.
+function noThreeAdjacent(cols) {
+  const s = [...cols].sort((a, b) => a - b);
+  for (let i = 0; i < s.length - 2; i++) {
+    if (s[i + 1] === s[i] + 1 && s[i + 2] === s[i] + 2) return false;
+  }
+  return true;
+}
+
 function tryAssignRows(counts) {
   // Reserve one slot of col 4 for row 1; put the rest in the pool.
   const pool = [];
@@ -679,16 +688,16 @@ function tryAssignRows(counts) {
     for (let k = 0; k < n; k++) pool.push(j);
   });
   // pool has 14 entries: row0 gets 5, row1Extra gets 4, row2 gets 5.
-  for (let attempt = 0; attempt < 400; attempt++) {
+  for (let attempt = 0; attempt < 800; attempt++) {
     const s = shuffle([...pool]);
     const row0 = s.slice(0, 5);
     const row1 = [4, ...s.slice(5, 9)]; // col 4 always in middle row
     const row2 = s.slice(9, 14);
-    // Each row must have 5 distinct columns.
+    // Each row must have 5 distinct columns AND no 3+ adjacent filled columns.
     if (
-      new Set(row0).size === 5 &&
-      new Set(row1).size === 5 &&
-      new Set(row2).size === 5
+      new Set(row0).size === 5 && noThreeAdjacent(row0) &&
+      new Set(row1).size === 5 && noThreeAdjacent(row1) &&
+      new Set(row2).size === 5 && noThreeAdjacent(row2)
     ) {
       const mask = Array.from({length:3}, () => Array(9).fill(0));
       [row0, row1, row2].forEach((row, r) => row.forEach(j => { mask[r][j] = 1; }));

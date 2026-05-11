@@ -2141,9 +2141,16 @@ function renderTableSeats(gs, curPid) {
   const table = el('rummyTable');
   if(!table || N < 2) return;
 
+  // ── Dynamic table + pile scaling based on player count ──
+  const tblScale = N >= 8 ? 0.70 : N >= 7 ? 0.76 : N >= 6 ? 0.82 : N >= 5 ? 0.90 : 1.0;
+  table.style.width = `min(${Math.round(96*tblScale)}vw, ${Math.round(460*tblScale)}px)`;
+  const pileScale = N >= 7 ? 0.65 : N >= 6 ? 0.75 : N >= 5 ? 0.85 : 1.0;
+  table.style.setProperty('--card-w', Math.round(64*pileScale)+'px');
+  table.style.setProperty('--card-h', Math.round(96*pileScale)+'px');
+
   const tw = table.offsetWidth  || 340;
   const th = table.offsetHeight || 380;
-  const pad = 14; // inset from rim edge
+  const pad = 14; // inset from outer table rim used for seat x/y positions
 
   // Assign each player a "side" on the rectangular table.
   // Me = bottom. Others distributed: top first, then left/right as needed.
@@ -2203,32 +2210,32 @@ function renderTableSeats(gs, curPid) {
     const rank      = rankings.findIndex(r=>r.id===pid);
     const bgColor   = SEAT_COLORS[i % SEAT_COLORS.length];
 
-    // Fan orientation: cards point INTO the table from the player's edge
-    // top → fan hangs downward (fan opening faces up = away from table center)
-    // left → fan opens to the right
-    // right → fan opens to the left
+    // ── Card fan — always PARALLEL to the table edge ──
+    // Top seats: horizontal fan (cards spread left-right).
+    // Left/right seats: vertical fan (cards spread top-bottom).
     const fanCount = Math.min(handCount, 7);
     let fanHTML = '';
-    if(!isWinner && fanCount > 0) {
-      const spread = Math.min(28, fanCount * 5);
+    if (!isWinner && fanCount > 0) {
       const FW = 20, FH = 30;
-      const totalW = fanCount * 10 + FW;
-      let wrapStyle = `position:relative;width:${totalW}px;height:${FH+10}px;flex-shrink:0;`;
-      // For top seats: fan cards along x-axis fanning upward
-      // For left/right seats: fan cards along y-axis
-      fanHTML = `<div style="${wrapStyle}">`;
-      for(let k=0;k<fanCount;k++){
-        const rot = -spread/2 + k*(spread/Math.max(fanCount-1,1));
-        const lx  = k*10;
-        // top/bottom: normal fanning rotation, origin bottom center
-        // left: rotate 90+rot, right: rotate -90+rot
-        let baseRot = rot;
-        let origin  = 'bottom center';
-        if(pos.side==='left')  { baseRot = rot; origin='left center'; }
-        if(pos.side==='right') { baseRot = rot; origin='right center'; }
-        fanHTML += `<div class="seat-fan-card" style="left:${lx}px;bottom:0;transform-origin:${origin};transform:rotate(${baseRot}deg)"></div>`;
+      const spread = Math.min(24, fanCount * 4);
+      if (pos.side === 'top') {
+        const totalW = fanCount * 10 + FW;
+        fanHTML = `<div style="position:relative;width:${totalW}px;height:${FH+10}px;flex-shrink:0;">`;
+        for (let k = 0; k < fanCount; k++) {
+          const rot = -spread/2 + k*(spread/Math.max(fanCount-1,1));
+          fanHTML += `<div class="seat-fan-card" style="left:${k*10}px;bottom:0;transform-origin:bottom center;transform:rotate(${rot}deg)"></div>`;
+        }
+        fanHTML += '</div>';
+      } else {
+        // Vertical fan parallel to the side edge
+        const totalH = fanCount * 9 + FH;
+        fanHTML = `<div style="position:relative;width:${FW+8}px;height:${totalH}px;flex-shrink:0;">`;
+        for (let k = 0; k < fanCount; k++) {
+          const rot = -spread/2 + k*(spread/Math.max(fanCount-1,1));
+          fanHTML += `<div class="seat-fan-card" style="top:${k*9}px;left:0;transform-origin:center center;transform:rotate(${rot}deg)"></div>`;
+        }
+        fanHTML += '</div>';
       }
-      fanHTML += '</div>';
     }
 
     const seat = document.createElement('div');
@@ -2236,26 +2243,26 @@ function renderTableSeats(gs, curPid) {
     seat.id = 'seat-'+pid;
     seat.style.left = pos.x + 'px';
     seat.style.top  = pos.y + 'px';
-    // For top seats: fan above avatar. For left/right: fan to the side.
+    // Fan on the OUTSIDE of the table: top→above avatar (column), left→left of avatar (row), right→right of avatar (row-reverse)
     const isTop   = pos.side==='top';
     const isLeft  = pos.side==='left';
     const isRight = pos.side==='right';
-    const flexDir = isTop ? 'column' : (isLeft ? 'row-reverse' : 'row');
+    const flexDir = isTop ? 'column' : (isLeft ? 'row' : 'row-reverse');
     seat.style.flexDirection = flexDir;
     seat.style.alignItems    = 'center';
     seat.style.gap = '3px';
 
-    // ── Standalone person figure — wrists resting on the table rim ──
-    // In the top-down SVG the forearms/wrists are at y≈25 (SVG coords 0-82).
-    // We position each figure so those wrists sit figOverlap px INSIDE the rim.
+    // ── Figure positioning — wrists land on the table rim ──
+    // Rotation math (CSS convention, CW positive, y-axis down):
+    //   rotate(180°):  wrist container_y = centre_y + wristEdge  → centre_y = figOverlap − wristEdge
+    //   rotate(−90°):  wrist container_x = centre_x − wristEdge  → centre_x = wristEdge + figOverlap
+    //   rotate(+90°):  wrist container_x = centre_x + wristEdge  → centre_x = tw − wristEdge − figOverlap
     const figScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
-    const figW = Math.round(70 * figScale);  // rendered px width
-    const figH = Math.round(82 * figScale);  // rendered px height
-    const handsOffset = Math.round(25 / 82 * figH); // px from SVG top to wrist level
-    const figOverlap  = 4; // px wrists extend past the rim into the felt
-    // After any 90°/180° rotation, the distance from the element centre to the
-    // wrist edge (in the axis perpendicular to the rim) is always figH/2 - handsOffset.
-    const wristEdge = figH / 2 - handsOffset;
+    const figW = Math.round(70 * figScale);
+    const figH = Math.round(82 * figScale);
+    const handsOffset = Math.round(25 / 82 * figH);
+    const wristEdge   = figH / 2 - handsOffset;
+    const figOverlap  = 8;
 
     const figRotMap = { top: 180, left: -90, right: 90 };
     const figRot = figRotMap[pos.side] || 0;
@@ -2263,12 +2270,12 @@ function renderTableSeats(gs, curPid) {
     let figLeft, figTop;
     if (pos.side === 'top') {
       figLeft = pos.x;
-      figTop  = -(wristEdge - figOverlap);   // wrists figOverlap px below y=0 (top rim)
+      figTop  = figOverlap - wristEdge;        // wrist lands figOverlap px inside top rim
     } else if (pos.side === 'left') {
-      figLeft = -(wristEdge - figOverlap);   // wrists figOverlap px right of x=0 (left rim)
+      figLeft = wristEdge + figOverlap;         // wrist lands figOverlap px inside left rim
       figTop  = pos.y;
     } else { // right
-      figLeft = tw + (wristEdge - figOverlap); // wrists figOverlap px left of x=tw (right rim)
+      figLeft = tw - wristEdge - figOverlap;    // wrist lands figOverlap px inside right rim
       figTop  = pos.y;
     }
 
@@ -2298,18 +2305,20 @@ function renderTableSeats(gs, curPid) {
     container.appendChild(seat);
   });
 
-  // ── My own figure — fully outside bottom edge, head touching the bottom rim ──
+  // ── My own figure — wrists resting on the bottom rim (rotate 0°) ──
+  // rotate(0°): wrist container_y = centre_y − wristEdge  → centre_y = th − figOverlap + wristEdge
   const myFigScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
   const myFigW = Math.round(70 * myFigScale);
   const myFigH = Math.round(82 * myFigScale);
-  const myHeadOff = Math.round(12 / 82 * myFigH);
+  const myHandsOff  = Math.round(25 / 82 * myFigH);
+  const myWristEdge = myFigH / 2 - myHandsOff;
+  const myFigOverlap = 8;
   const myIsActiveFig = curPid === myId;
   const myFig = document.createElement('div');
   myFig.className = 'player-figure' + (myIsActiveFig ? ' active' : '');
   myFig.style.position  = 'absolute';
   myFig.style.left      = (tw / 2) + 'px';
-  // No rotation: head (top of SVG) should touch bottom rim at y=th
-  myFig.style.top       = (th + myHeadOff) + 'px';
+  myFig.style.top       = (th - myFigOverlap + myWristEdge) + 'px';
   myFig.style.transform = 'translate(-50%,-50%) rotate(0deg)';
   myFig.style.width     = myFigW + 'px';
   myFig.style.height    = myFigH + 'px';

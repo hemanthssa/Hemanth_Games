@@ -2245,46 +2245,30 @@ function renderTableSeats(gs, curPid) {
     seat.style.alignItems    = 'center';
     seat.style.gap = '3px';
 
-    // ── Standalone person figure — fully OUTSIDE the table edge, head touching the rim ──
-    // Figure SVG is 70×82, viewBox 0 0 70 82. Head centre is at y=12, so head-top=0.
-    // We scale it down for many players and compute the real pixel size.
+    // ── Standalone person figure — wrists resting on the table rim ──
+    // In the top-down SVG the forearms/wrists are at y≈25 (SVG coords 0-82).
+    // We position each figure so those wrists sit figOverlap px INSIDE the rim.
     const figScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
     const figW = Math.round(70 * figScale);  // rendered px width
     const figH = Math.round(82 * figScale);  // rendered px height
-    // Head is at ~14.6% of figH from top (y=12/82*figH).
-    const headOffsetFromTop = Math.round(12 / 82 * figH);
+    const handsOffset = Math.round(25 / 82 * figH); // px from SVG top to wrist level
+    const figOverlap  = 4; // px wrists extend past the rim into the felt
+    // After any 90°/180° rotation, the distance from the element centre to the
+    // wrist edge (in the axis perpendicular to the rim) is always figH/2 - handsOffset.
+    const wristEdge = figH / 2 - handsOffset;
 
     const figRotMap = { top: 180, left: -90, right: 90 };
     const figRot = figRotMap[pos.side] || 0;
 
-    // For each side, the figure's head must sit right at the table outer rim.
-    // The table outer rim in container-space:
-    //   top edge  → y = 0 (relative to #tableSeats which covers the rummy-table)
-    //   left edge → x = 0
-    //   right edge→ x = tw
-    //   bottom edge is handled separately for myFig
-    //
-    // When rotated 180° (top player), the SVG is flipped:
-    //   what was the "bottom" (chair) is now at the top of the rendered element,
-    //   and the "head" is at the bottom of the rendered element.
-    // So figEl top-edge = tableY - figH, and head sits at tableY - headOffsetFromTop.
-    // We want head at y=0 (top rim), so figEl.top = -(figH - headOffsetFromTop).
-    //
-    // For left/right (rotated ±90°), the SVG rotates around its centre.
-    // We position by left/right then let transform handle the rest.
-
     let figLeft, figTop;
-    if(pos.side === 'top') {
-      // Rotated 180°: head is at bottom of rendered rect → we push the whole element above the rim
-      figLeft = pos.x;  // centred at same x as seat
-      figTop  = -(figH - headOffsetFromTop);  // head just at y=0 top rim
-    } else if(pos.side === 'left') {
-      // Rotated 90°: head points right. Position element so head touches left rim (x=0).
-      figLeft = -(figH - headOffsetFromTop);  // same math, using figH as the rotated width
+    if (pos.side === 'top') {
+      figLeft = pos.x;
+      figTop  = -(wristEdge - figOverlap);   // wrists figOverlap px below y=0 (top rim)
+    } else if (pos.side === 'left') {
+      figLeft = -(wristEdge - figOverlap);   // wrists figOverlap px right of x=0 (left rim)
       figTop  = pos.y;
     } else { // right
-      // Rotated -90°: head points left. Push element so head at x=tw.
-      figLeft = tw + (figH - headOffsetFromTop);
+      figLeft = tw + (wristEdge - figOverlap); // wrists figOverlap px left of x=tw (right rim)
       figTop  = pos.y;
     }
 

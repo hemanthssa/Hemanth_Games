@@ -2163,42 +2163,43 @@ function renderTableSeats(gs, curPid) {
   // overflow to left/right sides for large N.
   // Simple mapping: spread them evenly across top, left, right.
   function getSeatPos(relIdx, nOpp) {
-    // relIdx: 0 = first clockwise opponent after me
-    // We place them: top row (spread left-to-right), then right column, then left column
     if(nOpp === 1) return { x: tw/2, y: pad+18, side:'top' };
     if(nOpp === 2) return relIdx===0
-      ? { x: tw*0.35, y: pad+18, side:'top' }
-      : { x: tw*0.65, y: pad+18, side:'top' };
+      ? { x: tw*0.32, y: pad+18, side:'top' }
+      : { x: tw*0.68, y: pad+18, side:'top' };
     if(nOpp === 3) {
-      if(relIdx===0) return { x: tw*0.25, y: pad+18, side:'top' };
-      if(relIdx===1) return { x: tw*0.75, y: pad+18, side:'top' };
-      if(relIdx===2) return { x: tw/2,    y: pad+18, side:'top' };
+      // 3 spread evenly across top with generous gaps
+      if(relIdx===0) return { x: tw*0.18, y: pad+18, side:'top' };
+      if(relIdx===1) return { x: tw*0.82, y: pad+18, side:'top' };
+      if(relIdx===2) return { x: tw*0.50, y: pad+18, side:'top' };
     }
     if(nOpp === 4) {
-      if(relIdx===0) return { x: pad+18,  y: th*0.38, side:'left' };
-      if(relIdx===1) return { x: tw/2,    y: pad+18,  side:'top' };
-      if(relIdx===2) return { x: tw*0.72, y: pad+18,  side:'top' };
-      if(relIdx===3) return { x: tw-pad-18, y: th*0.38, side:'right' };
+      // 1 left, 2 top (symmetric), 1 right
+      if(relIdx===0) return { x: pad+18,     y: th*0.42, side:'left'  };
+      if(relIdx===1) return { x: tw*0.33,    y: pad+18,  side:'top'   };
+      if(relIdx===2) return { x: tw*0.67,    y: pad+18,  side:'top'   };
+      if(relIdx===3) return { x: tw-pad-18,  y: th*0.42, side:'right' };
     }
     if(nOpp === 5) {
-      if(relIdx===0) return { x: pad+18,    y: th*0.32, side:'left' };
-      if(relIdx===1) return { x: tw*0.28,   y: pad+18,  side:'top' };
-      if(relIdx===2) return { x: tw*0.72,   y: pad+18,  side:'top' };
-      if(relIdx===3) return { x: tw-pad-18, y: th*0.32, side:'right' };
-      if(relIdx===4) return { x: tw/2,      y: pad+18,  side:'top' };
+      // 1 left, 3 top (spread widely), 1 right
+      if(relIdx===0) return { x: pad+18,     y: th*0.42, side:'left'  };
+      if(relIdx===1) return { x: tw*0.18,    y: pad+18,  side:'top'   };
+      if(relIdx===2) return { x: tw*0.50,    y: pad+18,  side:'top'   };
+      if(relIdx===3) return { x: tw*0.82,    y: pad+18,  side:'top'   };
+      if(relIdx===4) return { x: tw-pad-18,  y: th*0.42, side:'right' };
     }
-    // 6+ players: spread across top, left, right evenly
-    const topCount  = Math.ceil(nOpp / 2);
+    // 6+ players: top centre, then sides
+    const topCount  = Math.ceil(nOpp / 3);  // roughly 1/3 on top
     const sideCount = Math.floor((nOpp - topCount) / 2);
     if(relIdx < topCount) {
       const t = topCount===1 ? 0.5 : relIdx/(topCount-1);
-      return { x: tw*(0.18 + t*0.64), y: pad+18, side:'top' };
+      return { x: tw*(0.15 + t*0.70), y: pad+18, side:'top' };
     }
     const sideIdx = relIdx - topCount;
     if(sideIdx < sideCount)
-      return { x: pad+18, y: th*(0.25 + sideIdx*(0.5/Math.max(sideCount-1,1))), side:'left' };
+      return { x: pad+18, y: th*(0.20 + sideIdx*(0.60/Math.max(sideCount-1,1))), side:'left' };
     const rightIdx = sideIdx - sideCount;
-    return { x: tw-pad-18, y: th*(0.25 + rightIdx*(0.5/Math.max(sideCount-1,1))), side:'right' };
+    return { x: tw-pad-18, y: th*(0.20 + rightIdx*(0.60/Math.max(sideCount-1,1))), side:'right' };
   }
 
   opponents.forEach(({pid, i}, relIdx) => {
@@ -2252,11 +2253,14 @@ function renderTableSeats(gs, curPid) {
     seat.style.alignItems    = 'center';
     seat.style.gap = '3px';
 
-    // ── Figure positioning — wrists land on the table rim ──
-    // Rotation math (CSS convention, CW positive, y-axis down):
-    //   rotate(180°):  wrist container_y = centre_y + wristEdge  → centre_y = figOverlap − wristEdge
-    //   rotate(−90°):  wrist container_x = centre_x − wristEdge  → centre_x = wristEdge + figOverlap
-    //   rotate(+90°):  wrist container_x = centre_x + wristEdge  → centre_x = tw − wristEdge − figOverlap
+    // ── Figure rotation & positioning ──
+    // rotate(-90°) for LEFT:  SVG-top(head) → page-RIGHT (toward table centre)
+    //                          SVG-bottom(chair) → page-LEFT (outside table)  ✔
+    // rotate(+90°) for RIGHT: SVG-top(head) → page-LEFT  (toward table centre)
+    //                          SVG-bottom(chair) → page-RIGHT (outside table) ✔
+    //
+    // After rotate(−90°): wrist page_x = figLeft + wristEdge  → figLeft = figOverlap − wristEdge
+    // After rotate(+90°): wrist page_x = figLeft − wristEdge  → figLeft = tw − figOverlap + wristEdge
     const figScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
     const figW = Math.round(70 * figScale);
     const figH = Math.round(82 * figScale);
@@ -2264,18 +2268,18 @@ function renderTableSeats(gs, curPid) {
     const wristEdge   = figH / 2 - handsOffset;
     const figOverlap  = 8;
 
-    const figRotMap = { top: 180, left: 90, right: -90 };
+    const figRotMap = { top: 180, left: -90, right: 90 };
     const figRot = figRotMap[pos.side] || 0;
 
     let figLeft, figTop;
     if (pos.side === 'top') {
       figLeft = pos.x;
-      figTop  = figOverlap - wristEdge;        // wrist lands figOverlap px inside top rim
+      figTop  = figOverlap - wristEdge;          // wrist figOverlap px inside top rim
     } else if (pos.side === 'left') {
-      figLeft = wristEdge + figOverlap;         // wrist lands figOverlap px inside left rim
+      figLeft = figOverlap - wristEdge;           // negative: centre outside left rim; wrist just inside
       figTop  = pos.y;
     } else { // right
-      figLeft = tw - wristEdge - figOverlap;    // wrist lands figOverlap px inside right rim
+      figLeft = tw + wristEdge - figOverlap;      // centre outside right rim; wrist just inside
       figTop  = pos.y;
     }
 

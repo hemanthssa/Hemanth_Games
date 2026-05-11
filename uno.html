@@ -2319,9 +2319,9 @@ function renderTableSeats(gs, curPid) {
     const mfC = Math.min(myHandCount, 7);
     const mfSpread = Math.min(24, mfC * 4);
     const mfW = mfC * 10 + 20;
-    // Place the fan base (transform-origin=bottom-center) at figOverlap px inside the bottom rim
+    // Bottom edge of container = wrist level (th - myFigOverlap); cards fan upward into table
     mySeat.style.cssText = `position:absolute;left:${tw/2}px;top:${th - myFigOverlap}px;
-      transform:translate(-50%,0);pointer-events:none;width:${mfW}px;height:40px;`;
+      transform:translate(-50%,-100%);pointer-events:none;width:${mfW}px;height:40px;`;
     let mfHTML = '';
     for (let k = 0; k < mfC; k++) {
       const rot = -mfSpread/2 + k*(mfSpread/Math.max(mfC-1,1));

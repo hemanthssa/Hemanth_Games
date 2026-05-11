@@ -2201,6 +2201,7 @@ function renderTableSeats(gs, curPid) {
     // ── Card fan — always PARALLEL to the table edge ──
     const fanCount = Math.min(handCount, 7);
     let fanHTML = '';
+    let sideFanEl = null;
     if (!isWinner && fanCount > 0) {
       const FW = 20, FH = 30;
       const spread = Math.min(24, fanCount * 4);
@@ -2213,18 +2214,20 @@ function renderTableSeats(gs, curPid) {
         }
         fanHTML += '</div>';
       } else {
-        // Vertical fan parallel to the left/right edge.
-        // For LEFT: fan sits to the left (outside), cards fan from their right edge inward.
-        // For RIGHT: fan sits to the right (outside), cards fan from their left edge inward.
+        // Left/right: absolutely positioned on the container, wrist at table rim, cards fan inward.
         const totalH = fanCount * 9 + FH;
-        const originX = pos.side === 'left' ? 'right' : 'left';
-        const cardX   = pos.side === 'left' ? 'right:0' : 'left:0';
-        fanHTML = `<div style="position:relative;width:${FW+8}px;height:${totalH}px;flex-shrink:0;">`;
+        const fanW = FW + 8;
+        const originX = pos.side === 'left' ? 'left' : 'right';
+        const cardX   = pos.side === 'left' ? 'left:0' : 'right:0';
+        const fanLeft = pos.side === 'left' ? figOverlap : (tw - figOverlap - fanW);
+        sideFanEl = document.createElement('div');
+        sideFanEl.style.cssText = `position:absolute;left:${fanLeft}px;top:${pos.y - totalH/2}px;width:${fanW}px;height:${totalH}px;pointer-events:none;`;
+        let sfHTML = '';
         for (let k = 0; k < fanCount; k++) {
           const rot = -spread/2 + k*(spread/Math.max(fanCount-1,1));
-          fanHTML += `<div class="seat-fan-card" style="top:${k*9}px;${cardX};transform-origin:${originX} center;transform:rotate(${rot}deg)"></div>`;
+          sfHTML += `<div class="seat-fan-card" style="position:absolute;top:${k*9}px;${cardX};transform-origin:${originX} center;transform:rotate(${rot}deg)"></div>`;
         }
-        fanHTML += '</div>';
+        sideFanEl.innerHTML = sfHTML;
       }
     }
 
@@ -2246,9 +2249,9 @@ function renderTableSeats(gs, curPid) {
     const labelRot = isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none';
     const nameStyle = `white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;
       font-size:9px;font-weight:900;color:${isActive?'var(--gold)':'#ffffffcc'};
-      text-shadow:0 1px 4px #000;transform:${labelRot};flex-shrink:0;`;
+      text-shadow:0 1px 4px #000;flex-shrink:0;`;
     const countStyle = `font-size:9px;font-weight:800;color:#ffffff70;
-      text-shadow:0 1px 4px #000;transform:${labelRot};flex-shrink:0;white-space:nowrap;`;
+      text-shadow:0 1px 4px #000;flex-shrink:0;white-space:nowrap;`;
 
     // ── Figure rotation & positioning ──
     const figScale = nOpp >= 5 ? 0.72 : nOpp === 4 ? 0.82 : 1;
@@ -2286,11 +2289,12 @@ function renderTableSeats(gs, curPid) {
 
     seat.innerHTML = `
       ${fanHTML}
-      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;transform:${labelRot};">
         <div style="${nameStyle}">${isActive?'🎯 ':''}<b>${p.nick||'?'}</b>${isWinner?' ✓':''}</div>
         <div style="${countStyle}">${isWinner?'done':handCount+' cards'}</div>
       </div>`;
     container.appendChild(seat);
+    if (sideFanEl) container.appendChild(sideFanEl);
   });
 
   // ── My own figure + card fan — bottom edge ──

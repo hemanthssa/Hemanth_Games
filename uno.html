@@ -2313,20 +2313,20 @@ function renderTableSeats(gs, curPid) {
   myFig.innerHTML = makePersonSVG(myP.nick||myNick||'Me', myHandCount, myIsWinner, myFigW, myFigH);
   container.appendChild(myFig);
 
-  // My card fan — horizontal, below my figure (outside bottom rim)
+  // My card fan — horizontal, just inside the bottom rim (mirroring top-player behaviour)
   if (!myIsWinner && myHandCount > 0) {
     const mySeat = document.createElement('div');
-    mySeat.style.cssText = `position:absolute;left:${tw/2}px;top:${th + myWristEdge*2 + 4}px;
-      transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;`;
     const mfC = Math.min(myHandCount, 7);
     const mfSpread = Math.min(24, mfC * 4);
     const mfW = mfC * 10 + 20;
-    let mfHTML = `<div style="position:relative;width:${mfW}px;height:40px;">`;
+    // Place the fan base (transform-origin=bottom-center) at figOverlap px inside the bottom rim
+    mySeat.style.cssText = `position:absolute;left:${tw/2}px;top:${th - myFigOverlap}px;
+      transform:translate(-50%,0);pointer-events:none;width:${mfW}px;height:40px;`;
+    let mfHTML = '';
     for (let k = 0; k < mfC; k++) {
       const rot = -mfSpread/2 + k*(mfSpread/Math.max(mfC-1,1));
-      mfHTML += `<div class="seat-fan-card" style="left:${k*10}px;bottom:0;transform-origin:bottom center;transform:rotate(${rot}deg)"></div>`;
+      mfHTML += `<div class="seat-fan-card" style="position:absolute;left:${k*10}px;bottom:0;transform-origin:bottom center;transform:rotate(${rot}deg)"></div>`;
     }
-    mfHTML += '</div>';
     mySeat.innerHTML = mfHTML;
     container.appendChild(mySeat);
   }

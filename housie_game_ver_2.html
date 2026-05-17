@@ -345,7 +345,7 @@
       <label>Host Password</label>
       <input type="password" id="inp-pwd" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <div class="field">
+    <div class="field" id="nick-field">
       <label>Your Name</label>
       <input type="text" id="inp-nick" placeholder="e.g. Priya" maxlength="20" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
@@ -656,7 +656,8 @@ function shuffle(a) { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.rand
 window.showLoginScreen = function(role) {
   loginRole = role;
   el('login-title').textContent = role==='host' ? '🎙️ Host Login' : '🎟️ Join as Player';
-  el('pwd-field').style.display = role==='host' ? 'block' : 'none';
+  el('pwd-field').style.display  = role==='host' ? 'block' : 'none';
+  el('nick-field').style.display = role==='host' ? 'none'  : 'block';
   el('inp-nick').value = ''; if(el('inp-pwd')) el('inp-pwd').value = '';
   showScreen('s-login');
   setTimeout(() => (role==='host' ? el('inp-pwd') : el('inp-nick')).focus(), 80);
@@ -664,7 +665,7 @@ window.showLoginScreen = function(role) {
 
 // ── Login ──
 window.doLogin = async function() {
-  const nick = el('inp-nick').value.trim();
+  const nick = loginRole === 'host' ? 'Host' : el('inp-nick').value.trim();
   if (!nick) { showToast('Enter your name'); return; }
   if (loginRole === 'host' && el('inp-pwd').value !== HOST_PASS) { showToast('❌ Wrong password'); return; }
 

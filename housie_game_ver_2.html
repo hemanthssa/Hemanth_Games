@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<!-- HOUSIE v2 — Firebase multiplayer rewrite -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tambola — Housie Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink:#e91e8c; --pink-light:#fce4f3; --pink-dark:#b0006a;
+    --gold:#f5a623; --gold-light:#fff8e7;
+    --green:#27ae60; --green-light:#eafaf1;
+    --purple:#8b5cf6; --blue:#2196f3; --red:#e53935;
+    --bg:#fff0f9; --text:#1a1a2e; --muted:#888;
+    --radius:14px; --shadow:0 4px 24px rgba(233,30,140,0.10);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Nunito',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  h1,h2,h3 { font-family:'Baloo 2',cursive; }
+
+  /* ── SCREENS ── */
+  .screen { display:none; min-height:100vh; }
+  .screen.active { display:flex; flex-direction:column; }
+
+  /* ── LANDING ── */
+  #s-landing {
+    align-items:center; justify-content:center; padding:2rem; text-align:center;
+    background:linear-gradient(135deg,#ffe0f5 0%,#fce4f3 50%,#e8d5ff 100%);
+  }
+  #s-landing h1 { font-size:clamp(2.4rem,7vw,4rem); color:var(--pink); letter-spacing:-1px; }
+  #s-landing > p { font-size:1.1rem; color:#666; margin:.5rem 0 2.5rem; }
+  .role-cards { display:flex; flex-direction:column; gap:1rem; align-items:stretch; width:100%; max-width:340px; }
+  .role-card {
+    background:#fff; border-radius:16px; padding:1rem 1.4rem; cursor:pointer;
+    box-shadow:0 8px 32px rgba(233,30,140,0.15); transition:transform .2s,box-shadow .2s;
+    display:flex; align-items:center; gap:1.1rem;
+  }
+  .role-card:hover { transform:translateY(-3px); box-shadow:0 16px 40px rgba(233,30,140,0.25); }
+  .role-card .icon { font-size:2rem; flex-shrink:0; }
+  .role-card h2 { font-size:1.15rem; color:var(--pink); margin-bottom:.15rem; }
+  .role-card p  { font-size:.82rem; color:#888; margin:0; }
+
+  /* ── LOGIN ── */
+  #s-login { align-items:center; justify-content:center; padding:2rem; background:linear-gradient(135deg,#ffe0f5,#e8d5ff); }
+  .login-box {
+    background:#fff; border-radius:20px; padding:2rem; width:100%; max-width:360px;
+    box-shadow:0 8px 32px rgba(233,30,140,0.15);
+  }
+  .login-box h2 { font-size:1.6rem; color:var(--pink); margin-bottom:1.5rem; text-align:center; }
+  .field { margin-bottom:1rem; }
+  .field label { display:block; font-size:.82rem; font-weight:700; color:var(--muted); margin-bottom:.35rem; text-transform:uppercase; letter-spacing:.05em; }
+  .field input {
+    width:100%; padding:.65rem 1rem; border:2px solid #fcd; border-radius:10px;
+    font-family:'Nunito',sans-serif; font-size:1rem; color:var(--text); outline:none; transition:border-color .2s;
+  }
+  .field input:focus { border-color:var(--pink); }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    background:var(--pink); color:#fff; padding:.8rem 1.5rem;
+    display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  }
+  .top-bar h1 { font-size:1.5rem; letter-spacing:-.5px; }
+  .badge { background:rgba(255,255,255,0.25); border-radius:20px; padding:.3rem .9rem; font-size:.82rem; font-weight:700; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display:inline-flex; align-items:center; gap:.4rem;
+    padding:.55rem 1.2rem; border-radius:10px; border:none; cursor:pointer;
+    font-family:'Nunito',sans-serif; font-weight:700; font-size:.9rem;
+    transition:filter .15s,transform .1s;
+  }
+  .btn:hover { filter:brightness(1.08); }
+  .btn:active { transform:scale(.97); }
+  .btn-pink    { background:var(--pink);  color:#fff; }
+  .btn-outline { background:#fff;         color:var(--pink); border:2px solid var(--pink); }
+  .btn-gold    { background:var(--gold);  color:#fff; }
+  .btn-green   { background:var(--green); color:#fff; }
+  .btn-red     { background:var(--red);   color:#fff; }
+  .btn-sm  { padding:.35rem .8rem; font-size:.8rem; }
+  .btn-lg  { padding:.8rem 2rem; font-size:1.1rem; border-radius:14px; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; filter:none; }
+
+  main { flex:1; padding:1.2rem; max-width:960px; margin:0 auto; width:100%; }
+
+  /* ── LOBBY ── */
+  .lobby-card { background:#fff; border-radius:var(--radius); padding:1.5rem; box-shadow:var(--shadow); margin-bottom:1.2rem; }
+  .lobby-card h3 { font-size:1rem; color:var(--muted); margin-bottom:1rem; font-weight:700; }
+  .player-list { display:flex; flex-direction:column; gap:.55rem; }
+  .player-row { display:flex; align-items:center; gap:.7rem; padding:.5rem .8rem; border-radius:10px; background:var(--pink-light); }
+  .online-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; background:#ccc; transition:background .4s; }
+  .online-dot.online  { background:var(--green); }
+  .online-dot.offline { background:#ccc; }
+  .player-row .nick { font-weight:700; flex:1; }
+  .player-row .role-tag { font-size:.72rem; font-weight:700; border-radius:10px; padding:.15rem .55rem; background:var(--pink); color:#fff; }
+  .player-row .role-tag.host-tag { background:var(--gold); }
+  .waiting-msg { text-align:center; color:var(--muted); font-size:.9rem; padding:1rem 0; }
+
+  /* ── NUMBER BOARD ── */
+  .called-board { background:#fff; border-radius:var(--radius); padding:1.2rem; box-shadow:var(--shadow); margin-bottom:1.2rem; }
+  .called-board h3 { font-size:1rem; color:var(--muted); margin-bottom:.8rem; font-weight:700; }
+  .num-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; }
+  .num-cell {
+    aspect-ratio:1; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:clamp(.6rem,2vw,.82rem); font-weight:700; background:#f5f5f5; color:#bbb; transition:background .3s,color .3s;
+  }
+  .num-cell.called { background:var(--pink); color:#fff; }
+
+  /* ── DRAW ZONE ── */
+  .draw-zone {
+    background:#fff; border-radius:var(--radius); padding:1.5rem; box-shadow:var(--shadow); margin-bottom:1.2rem;
+    display:flex; flex-direction:column; align-items:center; gap:1rem;
+  }
+  .big-number {
+    font-family:'Baloo 2',cursive; font-size:clamp(4rem,16vw,7rem); font-weight:800; color:var(--pink);
+    line-height:1; min-height:1.2em; display:flex; align-items:center; justify-content:center;
+    animation:pop .3s ease;
+  }
+  @keyframes pop { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  .recent-strip { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .recent-pill { background:var(--pink-light); color:var(--pink); border-radius:20px; padding:.25rem .7rem; font-weight:700; font-size:.85rem; }
+  .draw-controls { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; }
+  .speed-row { display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; justify-content:center; }
+  .speed-row label { font-size:.85rem; color:var(--muted); font-weight:600; }
+  .speed-row select {
+    border:2px solid #fcd; border-radius:8px; padding:.3rem .6rem;
+    font-family:'Nunito',sans-serif; font-weight:700; font-size:.85rem; color:var(--pink); background:#fff; outline:none; cursor:pointer;
+  }
+  .timer-bar-wrap { width:100%; height:6px; background:#f5f5f5; border-radius:3px; overflow:hidden; }
+  .timer-bar { height:100%; background:var(--pink); border-radius:3px; }
+
+  /* ── MILESTONES HOST ── */
+  .milestones { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem; margin-bottom:1.2rem; }
+  .milestone-card {
+    background:#fff; border-radius:var(--radius); padding:1rem 1.2rem; box-shadow:var(--shadow);
+    border-left:5px solid #ddd; display:flex; flex-direction:column; gap:.4rem;
+  }
+  .milestone-card.won { border-left-color:var(--green); background:var(--green-light); }
+  .milestone-card .ms-title { font-weight:700; font-size:.9rem; }
+  .milestone-card .ms-winner { font-size:.82rem; color:var(--green); font-weight:700; }
+  .ms0{border-left-color:var(--gold)} .ms1{border-left-color:var(--purple)}
+  .ms2{border-left-color:var(--blue)} .ms3{border-left-color:var(--pink)}
+  .ms4{border-left-color:#ff7043}     .ms5{border-left-color:var(--green)}
+
+  /* ── CLAIM NOTIFICATION (host) ── */
+  .claim-notif {
+    background:var(--gold-light); border:2px solid var(--gold); border-radius:14px;
+    padding:1rem 1.4rem; margin-bottom:.8rem;
+    display:flex; align-items:center; gap:.8rem; animation:pop .4s ease;
+  }
+  .claim-notif .cn-icon { font-size:1.8rem; flex-shrink:0; }
+  .claim-notif .cn-text { flex:1; }
+  .claim-notif .cn-text strong { font-size:1rem; color:var(--pink-dark); }
+  .claim-notif .cn-text span   { font-size:.85rem; color:var(--muted); display:block; }
+
+  /* ── FIXED CLAIM NOTIFICATION (always visible regardless of scroll) ── */
+  #fixed-claim-notif {
+    position:fixed; bottom:1.5rem; right:1.5rem; z-index:800;
+    width:320px; max-width:calc(100vw - 2rem);
+    pointer-events:none;
+  }
+  #fixed-claim-notif .claim-notif {
+    pointer-events:all;
+    box-shadow:0 8px 32px rgba(0,0,0,0.22);
+    margin-bottom:0;
+  }
+
+  /* ── PLAYER TICKET ── */
+  .ticket-wrapper { background:#fff; border-radius:var(--radius); padding:1.2rem; box-shadow:var(--shadow); margin-bottom:1.2rem; }
+  .ticket { display:grid; grid-template-columns:repeat(9,1fr); gap:5px; margin-bottom:1rem; }
+  .ticket-cell {
+    aspect-ratio:1; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:clamp(.75rem,2.5vw,1.1rem); font-family:'Baloo 2',cursive;
+    background:#fce4f3; color:var(--pink-dark); user-select:none; position:relative; transition:background .2s;
+  }
+  .ticket-cell.empty { background:#f0f0f0; color:transparent; cursor:default; }
+  .ticket-cell.struck { background:var(--pink); color:#fff; }
+  .ticket-cell.struck::after { content:'✕'; position:absolute; font-size:1.4em; font-weight:900; color:rgba(255,255,255,0.5); }
+  .ticket-cell:not(.empty):not(.struck):hover { background:#f9c7e8; cursor:pointer; }
+
+  /* ── CLAIM SECTION (player) ── */
+  .claim-section { display:flex; flex-direction:column; gap:.8rem; }
+  .claim-row { display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; }
+  .claim-row .ms-label { flex:1; min-width:160px; font-weight:600; font-size:.9rem; }
+  .status-won   { color:var(--green); font-weight:700; font-size:.85rem; }
+  .status-taken { color:var(--muted); font-style:italic; font-size:.82rem; }
+
+  /* ── SECTION LABEL ── */
+  .section-label { font-size:.78rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:.6rem; }
+
+  /* ── TOAST ── */
+  #toast {
+    position:fixed; top:1.5rem; left:50%; transform:translateX(-50%);
+    background:var(--text); color:#fff; padding:.75rem 1.5rem; border-radius:30px;
+    font-weight:700; font-size:.95rem; opacity:0; pointer-events:none; transition:opacity .3s; z-index:9999;
+    white-space:nowrap; max-width:90vw; text-align:center;
+  }
+  #toast.show { opacity:1; }
+
+  /* ── WINNER MODAL ── */
+  #winner-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; align-items:center; justify-content:center; }
+  #winner-overlay.show { display:flex; }
+  .winner-box { background:#fff; border-radius:24px; padding:2.5rem; max-width:380px; width:90%; text-align:center; animation:pop .4s ease; }
+  .winner-box .trophy { font-size:4rem; margin-bottom:.5rem; }
+  .winner-box h2 { font-size:1.8rem; color:var(--pink); margin-bottom:.3rem; }
+  .winner-box p  { color:#555; margin-bottom:1.5rem; }
+  .confetti-row  { display:flex; gap:8px; justify-content:center; font-size:1.5rem; }
+
+  /* ── END SCREEN ── */
+  #s-ended { align-items:center; justify-content:center; padding:2rem; text-align:center; background:linear-gradient(135deg,#ffe0f5,#e8d5ff); }
+  .ended-box { background:#fff; border-radius:24px; padding:2.5rem; max-width:420px; width:100%; box-shadow:var(--shadow); }
+  .ended-box h2 { font-size:2rem; color:var(--pink); margin-bottom:.5rem; }
+  .ms-result-list { text-align:left; margin:1.2rem 0; }
+  .ms-result-row { display:flex; justify-content:space-between; align-items:center; padding:.5rem 0; border-bottom:1px solid #fce4f3; font-size:.9rem; }
+  .ms-result-row .ms-name { font-weight:700; }
+  .ms-result-row .ms-winner-name { color:var(--green); font-weight:700; }
+  .ms-result-row .ms-open { color:var(--muted); font-style:italic; }
+
+  @media (max-width:500px) {
+    .milestones { grid-template-columns:1fr 1fr; }
+    .role-card   { padding:.9rem 1.2rem; }
+    main { padding:.9rem; }
+  }
+
+  /* ── PENDING MILESTONE (claim window open) ── */
+  .milestone-card.pending { border-left-color:var(--gold) !important; background:var(--gold-light); }
+  .milestone-card.pending .ms-winner { color:var(--gold); }
+
+  /* ── LOBBY GAME SETTINGS ── */
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.2rem; }
+  @media (max-width:480px) { .settings-grid { grid-template-columns:1fr; } }
+  .setting-card {
+    background:var(--pink-light); border-radius:12px; padding:1rem 1.1rem;
+    border:2px solid #fcd; display:flex; flex-direction:column; gap:.55rem;
+  }
+  .setting-card .sc-label {
+    font-size:.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--pink-dark);
+  }
+  .setting-card .sc-title { font-size:.95rem; font-weight:700; color:var(--text); }
+  .setting-card .sc-desc  { font-size:.78rem; color:var(--muted); }
+  .setting-stepper { display:flex; align-items:center; gap:.7rem; margin-top:.2rem; }
+  .stepper-btn {
+    width:34px; height:34px; border-radius:50%; border:2px solid var(--pink); background:#fff;
+    color:var(--pink); font-size:1.2rem; font-weight:800; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; flex-shrink:0; transition:background .15s,color .15s;
+    font-family:'Nunito',sans-serif;
+  }
+  .stepper-btn:hover { background:var(--pink); color:#fff; }
+  .stepper-btn:disabled { opacity:.35; cursor:not-allowed; }
+  .stepper-val {
+    font-family:'Baloo 2',cursive; font-size:1.8rem; font-weight:800;
+    color:var(--pink); min-width:2ch; text-align:center; line-height:1;
+  }
+  .stepper-unit { font-size:.8rem; color:var(--muted); font-weight:600; }
+
+  /* ── CLAIM WINDOW BANNER (host) ── */
+  .claim-window-banner {
+    background:var(--gold-light); border:2px solid var(--gold); border-radius:14px;
+    padding:1rem 1.4rem; margin-bottom:1.2rem;
+    align-items:center; gap:.8rem; animation:pop .4s ease;
+  }
+  .cwb-icon { font-size:2rem; flex-shrink:0; }
+  .cwb-text { flex:1; }
+  .cwb-text strong { font-size:1rem; color:var(--pink-dark); display:block; }
+  .cwb-text span { font-size:.85rem; color:var(--muted); }
+
+  /* ── GAME OVER OVERLAY ── */
+  #game-over-overlay {
+    display:none; position:fixed; inset:0; z-index:3000;
+    background:rgba(0,0,0,0.78);
+    align-items:center; justify-content:center; flex-direction:column;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  }
+  #game-over-overlay.show { display:flex; }
+  .go-box { text-align:center; animation:pop .55s ease; }
+  .go-emoji { font-size:clamp(3rem,12vw,5rem); line-height:1; }
+  .go-title {
+    font-family:'Baloo 2',cursive; font-size:clamp(2.8rem,11vw,5rem);
+    font-weight:800; color:#fff; line-height:1.1;
+    text-shadow:0 0 48px var(--gold),0 2px 12px rgba(0,0,0,0.6);
+  }
+  .go-subtitle { font-size:clamp(.9rem,3vw,1.15rem); color:rgba(255,255,255,0.75); margin:.6rem 0 1.5rem; }
+  .go-countdown-wrap {
+    display:inline-flex; flex-direction:column; align-items:center;
+    background:rgba(255,255,255,0.1); border:2px solid rgba(255,255,255,0.2);
+    border-radius:24px; padding:1rem 2.5rem; margin-bottom:.8rem;
+  }
+  .go-countdown {
+    font-family:'Baloo 2',cursive; font-size:clamp(3.5rem,14vw,6rem);
+    font-weight:800; color:var(--gold); line-height:1;
+    text-shadow:0 0 40px rgba(245,166,35,0.7);
+  }
+  .go-sub2 { font-size:.85rem; color:rgba(255,255,255,0.5); margin-top:.3rem; letter-spacing:.04em; text-transform:uppercase; }
+  .go-winners {
+    margin-top:.8rem; font-size:.9rem; color:rgba(255,255,255,0.7);
+    max-width:320px; line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── LANDING ── -->
+<div id="s-landing" class="screen active">
+  <div style="font-size:3.5rem;margin-bottom:.5rem;">🎉</div>
+  <h1>Tambola</h1>
+  <p>The classic Housie party game — now digital!</p>
+  <div class="role-cards">
+    <div class="role-card" onclick="showLoginScreen('host')">
+      <div class="icon">🎙️</div>
+      <div><h2>Host</h2><p>Draw numbers &amp; manage the game</p></div>
+    </div>
+    <div class="role-card" onclick="showLoginScreen('player')">
+      <div class="icon">🎟️</div>
+      <div><h2>Player</h2><p>Get a ticket &amp; play along</p></div>
+    </div>
+  </div>
+  <p style="margin-top:2rem;font-size:.8rem;color:#bbb;">Numbers 1–90 · up to 10 milestones · Firebase multiplayer</p>
+</div>
+
+<!-- ── LOGIN ── -->
+<div id="s-login" class="screen">
+  <div class="login-box" style="margin:auto">
+    <h2 id="login-title">Join Game</h2>
+    <div class="field" id="pwd-field" style="display:none">
+      <label>Host Password</label>
+      <input type="password" id="inp-pwd" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="field">
+      <label>Your Name</label>
+      <input type="text" id="inp-nick" placeholder="e.g. Priya" maxlength="20" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1rem;">
+      <button class="btn btn-pink" style="flex:1" onclick="doLogin()">Join →</button>
+      <button class="btn btn-outline" onclick="showScreen('s-landing')">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOBBY ── -->
+<div id="s-lobby" class="screen">
+  <div class="top-bar">
+    <h1>🎉 Tambola Lobby</h1>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+      <span class="badge" id="lobby-role-badge">Player</span>
+      <button class="btn btn-outline btn-sm" onclick="leaveRoom()">← Leave</button>
+    </div>
+  </div>
+  <main>
+    <div class="lobby-card">
+      <h3>Players in Room</h3>
+      <div class="player-list" id="lobby-player-list"></div>
+    </div>
+    <div class="lobby-card" id="host-controls" style="display:none">
+      <div class="section-label">Game Settings</div>
+      <div class="settings-grid">
+
+        <!-- Claim window duration -->
+        <div class="setting-card">
+          <div class="sc-label">⏳ Claim Window</div>
+          <div class="sc-title">Multi-claim Delay</div>
+          <div class="sc-desc">Seconds other eligible players have to also claim a milestone</div>
+          <div class="setting-stepper">
+            <button class="stepper-btn" onclick="stepSetting('claimSec',-1)" id="claimSec-minus">−</button>
+            <span class="stepper-val" id="claimSec-val">5</span>
+            <span class="stepper-unit">sec</span>
+            <button class="stepper-btn" onclick="stepSetting('claimSec',+1)" id="claimSec-plus">+</button>
+          </div>
+        </div>
+
+        <!-- Full house count -->
+        <div class="setting-card">
+          <div class="sc-label">🏠 Full Houses</div>
+          <div class="sc-title">Number of Full Houses</div>
+          <div class="sc-desc">How many Full House milestones should the game include (1–5)</div>
+          <div class="setting-stepper">
+            <button class="stepper-btn" onclick="stepSetting('fullHouses',-1)" id="fullHouses-minus">−</button>
+            <span class="stepper-val" id="fullHouses-val">1</span>
+            <span class="stepper-unit">house</span>
+            <button class="stepper-btn" onclick="stepSetting('fullHouses',+1)" id="fullHouses-plus">+</button>
+          </div>
+        </div>
+
+      </div>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem;">
+        At least 1 player must be online. Once started, no new players can join.
+      </p>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+        <button class="btn btn-green btn-lg" id="start-btn" onclick="hostStartGame()" disabled>▶ Start Game</button>
+        <button class="btn btn-red btn-lg" onclick="hostDeclareFromLobby()">🏁 Declare &amp; End</button>
+      </div>
+    </div>
+    <div class="waiting-msg" id="lobby-wait-msg" style="display:none">⏳ Waiting for the host to start the game…</div>
+  </main>
+</div>
+
+<!-- ── HOST GAME SCREEN ── -->
+<div id="s-host" class="screen">
+  <div class="top-bar">
+    <h1>🎙️ Tambola — Host</h1>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+      <span class="badge">Host</span>
+      <button class="btn btn-gold btn-sm" onclick="hostDeclareGame()">🏁 Declare Winners</button>
+      <button class="btn btn-red btn-sm" onclick="hostTerminateGame()">⏹ End Game</button>
+    </div>
+  </div>
+  <main>
+    <div id="claim-notif-area"></div>
+    <div class="called-board">
+      <h3>Numbers Called (<span id="h-called-count">0</span>/90)</h3>
+      <div class="num-grid" id="h-num-grid"></div>
+    </div>
+    <div class="draw-zone">
+      <div class="big-number" id="h-big-num">—</div>
+      <div class="recent-strip" id="h-recent-strip"></div>
+      <div class="speed-row">
+        <label>Auto-draw every</label>
+        <select id="speed-sel">
+          <option value="0">Manual only</option>
+          <option value="5000" selected>5 sec</option>
+          <option value="8000">8 sec</option>
+          <option value="12000">12 sec</option>
+          <option value="20000">20 sec</option>
+        </select>
+      </div>
+      <div class="timer-bar-wrap" id="timer-bar-wrap" style="display:none">
+        <div class="timer-bar" id="timer-bar" style="width:100%"></div>
+      </div>
+      <div class="draw-controls">
+        <button class="btn btn-pink btn-lg" id="draw-btn" onclick="hostDrawNumber()">🎲 Draw Number</button>
+        <button class="btn btn-outline btn-lg" id="auto-btn" onclick="toggleAuto()">▶ Auto Draw</button>
+      </div>
+    </div>
+    <div class="section-label">Milestones</div>
+    <div id="claim-window-banner" class="claim-window-banner" style="display:none">
+      <div class="cwb-icon">⏳</div>
+      <div class="cwb-text">
+        <strong id="cwb-title">Claim Window Open!</strong>
+        <span>Drawing is paused — players have a few seconds to also claim this milestone</span>
+      </div>
+    </div>
+    <div class="milestones" id="h-milestones"></div>
+    <div class="lobby-card">
+      <h3>Players</h3>
+      <div class="player-list" id="h-player-list"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ── PLAYER GAME SCREEN ── -->
+<div id="s-player" class="screen">
+  <div class="top-bar">
+    <h1>🎟️ Tambola</h1>
+    <span class="badge" id="p-nick-badge">Player</span>
+  </div>
+  <main>
+    <div class="called-board">
+      <h3>Numbers Called (<span id="p-called-count">0</span>/90)</h3>
+      <div class="num-grid" id="p-num-grid"></div>
+    </div>
+    <div class="ticket-wrapper">
+      <div class="section-label" style="margin-bottom:.6rem">Your Ticket <span style="font-size:.75rem;font-weight:400;text-transform:none;letter-spacing:0">(tap called numbers to strike)</span></div>
+      <div class="ticket" id="p-live-ticket"></div>
+      <div style="display:flex;gap:1rem;font-size:.82rem;color:var(--muted);">
+        <span>Struck: <strong id="p-struck-count">0</strong></span>
+        <span>Remaining: <strong id="p-remaining-count">0</strong></span>
+      </div>
+    </div>
+    <div class="ticket-wrapper">
+      <div class="section-label">Claim a Milestone 🏆</div>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:1rem;">
+        Qualify for a milestone → Claim button activates → Shout it &amp; click Claim!
+      </p>
+      <div class="claim-section" id="p-claim-section"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ── ENDED SCREEN ── -->
+<div id="s-ended" class="screen">
+  <div class="ended-box" style="margin:auto">
+    <div style="font-size:3rem">🎊</div>
+    <h2>Game Over!</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-bottom:.5rem">Milestone winners</p>
+    <div class="ms-result-list" id="ended-results"></div>
+    <button class="btn btn-pink" style="margin-top:1.5rem;width:100%" onclick="goToLobby()">🎲 Play Again (Go to Lobby)</button>
+  </div>
+</div>
+
+<!-- ── TOAST & WINNER MODAL ── -->
+<div id="toast"></div>
+<!-- Fixed claim notification — always visible regardless of scroll -->
+<div id="fixed-claim-notif"></div>
+
+<!-- ── GAME OVER OVERLAY ── -->
+<div id="game-over-overlay">
+  <div class="go-box">
+    <div class="go-emoji">🎊</div>
+    <div class="go-title">Game Over!</div>
+    <div class="go-subtitle">All milestones have been claimed!</div>
+    <div class="go-countdown-wrap">
+      <div class="go-countdown" id="go-countdown">5</div>
+      <div class="go-sub2">Results in…</div>
+    </div>
+    <div class="go-winners" id="go-winners"></div>
+  </div>
+</div>
+<div id="winner-overlay">
+  <div class="winner-box">
+    <div class="trophy">🏆</div>
+    <h2 id="w-title">Winner!</h2>
+    <p id="w-body"></p>
+    <div class="confetti-row">🎉 🥳 🎊 🎈 🎁</div>
+    <div style="margin-top:1.5rem;">
+      <button class="btn btn-pink" onclick="closeWinner()">Awesome! Continue</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, set, get, update, onValue, remove, runTransaction, onDisconnect, off }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC_siqj8PZ0SEqQleIZk6_7izP6SSn7jzU",
+  authDomain: "multi-player-uno.firebaseapp.com",
+  databaseURL: "https://multi-player-uno-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "multi-player-uno",
+  storageBucket: "multi-player-uno.firebasestorage.app",
+  messagingSenderId: "537270819855",
+  appId: "1:537270819855:web:041f749c35fee4d36a177a"
+};
+const app = initializeApp(firebaseConfig, 'housie');
+const db  = getDatabase(app);
+
+const ROOM        = 'house_room';
+const HOST_PASS   = '981330';
+const ROOM_REF    = () => ref(db, ROOM);
+const PLAYER_REF  = (id) => ref(db, `${ROOM}/players/${id}`);
+const STRIKES_REF = (id) => ref(db, `${ROOM}/strikes/${id}`);
+const MS_REF      = (id) => ref(db, `${ROOM}/milestones/${id}`);
+
+// ── Base milestones (non-full-house) ──
+const BASE_MILESTONES = [
+  { id:'early5',   label:'Jaldi Five',  desc:'Any 5 numbers struck',    color:'#f5a623' },
+  { id:'middle',   label:'Laddu',       desc:'Row 2 centre cell struck', color:'#8b5cf6' },
+  { id:'top',      label:'First Line',  desc:'All of row 1 struck',      color:'#2196f3' },
+  { id:'mid-line', label:'Middle Line', desc:'All of row 2 struck',      color:'#e91e8c' },
+  { id:'bot-line', label:'Last Line',   desc:'All of row 3 struck',      color:'#ff7043' },
+];
+
+// Build the active milestone list from game settings.
+// fullHouseCount: how many Full House milestones to include (1–5).
+function buildMilestones(fullHouseCount) {
+  const fhCount = Math.min(5, Math.max(1, fullHouseCount || 1));
+  const fhColors = ['#27ae60','#16a085','#1abc9c','#2ecc71','#58d68d'];
+  const fulls = Array.from({ length: fhCount }, (_, i) => ({
+    id:    fhCount === 1 ? 'full' : `full${i+1}`,
+    label: fhCount === 1 ? 'Full House' : `Full House ${i+1}`,
+    desc:  'All 15 numbers struck',
+    color: fhColors[i],
+    isFull: true,
+  }));
+  return [...BASE_MILESTONES, ...fulls];
+}
+
+// Active milestone list — re-built when the game state arrives.
+// Starts with default (1 full house) so rendering works before a game loads.
+let MILESTONES = buildMilestones(1);
+
+let myId   = null, myNick = '', myRole = '', loginRole = '';
+let roomUnsub = null, autoTimer = null, autoInterval = 5000;
+let claimNotifTimer = null;
+let _lastNotifKey = '';
+let _lastPlayerNotifKey = '';     // player-side claim notification dedup
+let _pendingMsTimers = {};        // msId+'_'+windowUntil → timer id for auto-finalization
+let _pausedForClaim = false;      // true when drawing is paused due to active claim window
+let _wasAutoWhenPaused = false;   // whether auto-draw was running before the pause
+let _gameOverShown = false;       // guard: show game-over overlay only once
+let _gameOverTimer = null;        // timer to transition to ended after game-over countdown
+let _ignoringEnded = false; // true when user explicitly navigated to lobby from ended screen
+
+// ── Lobby settings (host only, persisted to Firebase on Start) ──
+const SETTINGS = { claimSec: 5, fullHouses: 1 };
+const SETTING_LIMITS = { claimSec: [1, 10], fullHouses: [1, 5] };
+
+window.stepSetting = function(key, delta) {
+  const [min, max] = SETTING_LIMITS[key];
+  SETTINGS[key] = Math.min(max, Math.max(min, SETTINGS[key] + delta));
+  el(`${key}-val`).textContent = SETTINGS[key];
+  el(`${key}-minus`).disabled = SETTINGS[key] <= min;
+  el(`${key}-plus`).disabled  = SETTINGS[key] >= max;
+};
+
+// ── Utilities ──
+function uid() { return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function el(id) { return document.getElementById(id); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  el(id).classList.add('active');
+}
+window.showScreen = showScreen;
+
+function showToast(msg, dur=2800) {
+  const t = el('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._tmr); t._tmr = setTimeout(() => t.classList.remove('show'), dur);
+}
+function showWinner(name, milestone) {
+  el('w-title').textContent = `🏆 ${milestone}!`;
+  el('w-body').textContent  = `${name} wins the ${milestone} milestone!`;
+  el('winner-overlay').classList.add('show');
+}
+window.closeWinner = () => el('winner-overlay').classList.remove('show');
+function shuffle(a) { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// ── Landing → Login ──
+window.showLoginScreen = function(role) {
+  loginRole = role;
+  el('login-title').textContent = role==='host' ? '🎙️ Host Login' : '🎟️ Join as Player';
+  el('pwd-field').style.display = role==='host' ? 'block' : 'none';
+  el('inp-nick').value = ''; if(el('inp-pwd')) el('inp-pwd').value = '';
+  showScreen('s-login');
+  setTimeout(() => (role==='host' ? el('inp-pwd') : el('inp-nick')).focus(), 80);
+};
+
+// ── Login ──
+window.doLogin = async function() {
+  const nick = el('inp-nick').value.trim();
+  if (!nick) { showToast('Enter your name'); return; }
+  if (loginRole === 'host' && el('inp-pwd').value !== HOST_PASS) { showToast('❌ Wrong password'); return; }
+
+  const snap = await get(ROOM_REF());
+  const state = snap.val();
+  if (loginRole === 'player' && state && state.phase === 'playing') {
+    showToast('🚫 Game in progress — cannot join now'); return;
+  }
+
+  myRole = loginRole;
+  myNick = nick;
+
+  // ── Nick-based deduplication (applies to BOTH host and player) ──
+  // Find every existing entry with this nick — regardless of role.
+  // Reuse the first match as myId so the Firebase slot is overwritten, not duplicated.
+  // Delete any extra duplicates that somehow accumulated.
+  const allPlayers = (state && state.players) ? Object.entries(state.players) : [];
+  const sameNick   = allPlayers.filter(([, p]) => !p.kicked && p.nick === nick);
+
+  if (sameNick.length > 0) {
+    myId = sameNick[0][0]; // reuse first matching slot
+    // Remove any extra duplicates (shouldn't normally exist, but clean up just in case)
+    await Promise.all(sameNick.slice(1).map(([pid]) => remove(PLAYER_REF(pid))));
+  } else {
+    myId = uid();
+  }
+
+  const pd = { nick, role:myRole, connected:true, joinedAt:Date.now() };
+  await set(PLAYER_REF(myId), pd);
+  onDisconnect(PLAYER_REF(myId)).update({ connected:false });
+
+  if (myRole === 'host') {
+    // Remove any OLD host entries that are NOT the current myId
+    // (left over from previous sessions where host logged in without cleaning up)
+    const staleHosts = allPlayers.filter(([pid, p]) => p.role === 'host' && pid !== myId);
+    await Promise.all(staleHosts.map(([pid]) => remove(PLAYER_REF(pid))));
+
+    const fresh = !state || state.phase === 'ended';
+    if (fresh) {
+      // Keep only non-host, non-kicked waiting players; wipe all game data
+      const cleanPlayers = {};
+      allPlayers.forEach(([pid, p]) => {
+        if (pid !== myId && p.role !== 'host' && !p.kicked) cleanPlayers[pid] = p;
+      });
+      await set(ROOM_REF(), {
+        phase:'lobby', hostId:myId,
+        players:{ ...cleanPlayers, [myId]:pd },
+        calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null
+      });
+    } else {
+      // Room already running — just update hostId (myId slot already written above)
+      await update(ROOM_REF(), { hostId:myId });
+    }
+  } else {
+    // Player joining
+    if (!state) {
+      await update(ROOM_REF(), { phase:'lobby' });
+    } else if (state.phase === 'ended') {
+      _ignoringEnded = true;
+    }
+  }
+
+  el('lobby-role-badge').textContent  = myRole==='host' ? '🎙️ Host' : '🎟️ Player';
+  el('host-controls').style.display   = myRole==='host' ? 'block' : 'none';
+  el('lobby-wait-msg').style.display  = myRole==='host' ? 'none'  : 'block';
+  subscribeRoom();
+  subscribeConnectionState(); // keep connected flag live on reconnect
+  showScreen('s-lobby');
+};
+
+// ── Leave / Home ──
+window.goHome = function() {
+  stopAuto();
+  clearGameOverOverlay();
+  unsubscribeConnectionState();
+  if (roomUnsub) { roomUnsub(); roomUnsub = null; }
+  if (myId) { update(PLAYER_REF(myId), {connected:false}); onDisconnect(PLAYER_REF(myId)).cancel(); }
+  myId = null; myNick = ''; myRole = '';
+  showScreen('s-landing');
+};
+window.leaveRoom = function() {
+  if (myRole==='host' && !confirm('Leave as host? The game continues.')) return;
+  goHome();
+};
+
+// ── Firebase connection-state subscription ──
+// Firebase's .info/connected becomes true whenever the SDK re-establishes its
+// WebSocket (e.g. user switches back to the tab after it was backgrounded).
+// We use this to re-write connected:true and re-arm the onDisconnect handler,
+// which is the only reliable way to restore the green dot after a reconnect.
+let connUnsub = null;
+function subscribeConnectionState() {
+  if (connUnsub) return; // already subscribed
+  const connRef = ref(db, '.info/connected');
+  const cb = onValue(connRef, snap => {
+    if (!myId) return; // not logged in — ignore
+    if (snap.val() === true) {
+      // Re-arm: if we disconnect again, mark offline
+      onDisconnect(PLAYER_REF(myId)).update({ connected: false });
+      // Re-assert online presence
+      update(PLAYER_REF(myId), { connected: true });
+    }
+    // When snap.val() === false the onDisconnect handler already fires server-side;
+    // we don't need to do anything extra here.
+  });
+  connUnsub = () => off(connRef, 'value', cb);
+}
+function unsubscribeConnectionState() {
+  if (connUnsub) { connUnsub(); connUnsub = null; }
+}
+
+// ── Firebase room subscription ──
+function subscribeRoom() {
+  if (roomUnsub) roomUnsub();
+  const r = ROOM_REF();
+  const cb = onValue(r, snap => { const s = snap.val(); if(s) handleStateChange(s); });
+  roomUnsub = () => off(r, 'value', cb);
+}
+
+function handleStateChange(state) {
+  if (!state) return;
+
+  // ── Kicked check: player was removed by host ──
+  if (myId && myRole !== 'host' && state.players && state.players[myId] && state.players[myId].kicked) {
+    stopAuto();
+    if (roomUnsub) { roomUnsub(); roomUnsub = null; }
+    onDisconnect(PLAYER_REF(myId)).cancel();
+    myId = null; myNick = ''; myRole = '';
+    el('inp-nick').value = '';
+    showToast('❌ You were removed from the game by the host', 4000);
+    showScreen('s-login');
+    return;
+  }
+
+  const phase = state.phase || 'lobby';
+  const cur = document.querySelector('.screen.active')?.id;
+  if (phase === 'lobby') {
+    _ignoringEnded = false;
+    // If player is no longer in the players list (edge case: host hard-reset), send them to login
+    if (myRole === 'player' && myId && myNick && (!state.players || !state.players[myId])) {
+      el('inp-nick').value = myNick; // pre-fill their name so they just click Join
+      el('pwd-field').style.display = 'none';
+      el('login-title').textContent = '🎟️ Re-join Game';
+      showToast('🔄 Host started a new game — please re-join', 3500);
+      showScreen('s-login');
+      return;
+    }
+    renderLobby(state);
+    if (cur==='s-host' || cur==='s-player' || cur==='s-ended') showScreen('s-lobby');
+  } else if (phase === 'playing') {
+    _ignoringEnded = false;
+    // Sync MILESTONES from the game settings stored in Firebase
+    if (state.gameSettings) {
+      MILESTONES = buildMilestones(state.gameSettings.fullHouseCount || 1);
+    }
+    if (myRole==='host') { renderHostGame(state); if(cur!=='s-host') showScreen('s-host'); }
+    else                 { renderPlayerGame(state); if(cur!=='s-player') showScreen('s-player'); }
+    // Show Game Over overlay when all milestones are claimed
+    if (state.gameOverAt && !_gameOverShown) {
+      const remaining = state.gameOverAt - Date.now();
+      if (remaining > 0) {
+        showGameOverOverlay(state.gameOverAt, state.milestones || {});
+      }
+      // If remaining <= 0 and phase is still 'playing', host will push 'ended' shortly; players just wait
+    }
+  } else if (phase === 'ended') {
+    // Everyone sees the ended screen (both host and players)
+    // _ignoringEnded only applies to players joining mid-ended-state (not actively playing)
+    if (_ignoringEnded && cur === 's-login') {
+      // Newly joining player into an already-ended room — keep them in lobby
+      renderLobby(state);
+      if (cur !== 's-lobby') showScreen('s-lobby');
+    } else {
+      clearGameOverOverlay();
+      stopAuto();
+      if (state.gameSettings) MILESTONES = buildMilestones(state.gameSettings.fullHouseCount || 1);
+      renderEndScreen(state); showScreen('s-ended');
+    }
+  }
+}
+
+// ── Lobby render ──
+function renderLobby(state) {
+  const players = state.players || {};
+  const list = el('lobby-player-list'); list.innerHTML = '';
+  let onlinePlayers = 0;
+  Object.entries(players).forEach(([pid, p]) => {
+    if (p.kicked) return; // don't show kicked players
+    if (p.role!=='host' && p.connected) onlinePlayers++;
+    const removeBtn = (myRole==='host' && p.role!=='host')
+      ? `<button class="btn btn-red btn-sm" onclick="hostRemovePlayer('${pid}')">✕ Remove</button>`
+      : '';
+    const row = document.createElement('div'); row.className = 'player-row';
+    row.innerHTML = `<div class="online-dot ${p.connected?'online':'offline'}"></div>
+      <span class="nick">${p.nick}</span>
+      <span class="role-tag ${p.role==='host'?'host-tag':''}">` + (p.role==='host'?'🎙️ Host':'🎟️ Player') + `</span>
+      ${removeBtn}`;
+    list.appendChild(row);
+  });
+  if (!list.children.length) list.innerHTML = '<div class="waiting-msg">No players yet… share the link!</div>';
+  if (myRole==='host') el('start-btn').disabled = onlinePlayers < 1;
+}
+
+// ── Host: Start game ──
+window.hostStartGame = async function() {
+  const snap = await get(ROOM_REF());
+  const state = snap.val(); if(!state) return;
+  const players = state.players || {};
+  const tickets = {};
+  const usedTickets = new Set();
+  const usedMiddleNums = new Set(); // ensure ticket[13] (row-2, col-5) is unique per player
+
+  const gameSettings = { claimWindowMs: SETTINGS.claimSec * 1000, fullHouseCount: SETTINGS.fullHouses };
+  MILESTONES = buildMilestones(SETTINGS.fullHouses);
+
+  Object.entries(players).forEach(([pid,p]) => {
+    if (p.role !== 'host') {
+      let ticket;
+      let attempts = 0;
+      // Regenerate until ticket[13] is unique (or after 300 tries — e.g. >10 players)
+      do {
+        ticket = generateRandomTicket();
+        attempts++;
+      } while ((usedTickets.has(JSON.stringify(ticket)) || usedMiddleNums.has(ticket[13])) && attempts < 300);
+      usedTickets.add(JSON.stringify(ticket));
+      usedMiddleNums.add(ticket[13]);
+      tickets[pid] = ticket;
+    }
+  });
+  await update(ROOM_REF(), { phase:'playing', calledNumbers:[], strikes:{}, milestones:{}, lastClaim:null, tickets, gameSettings });
+  showToast('Game started! 🎉');
+};
+
+// ── Ticket generation ──
+// Standard Tambola/Housie rules:
+//   • 3 rows × 9 columns, 15 numbers total, exactly 5 per row.
+//   • Column bands: col0=1-9, col1=10-19, …, col8=80-90.
+//   • Each band contributes 1–3 numbers to the ticket.
+//   • Numbers are sorted ascending within each column (top→bottom).
+//   • Row 2 (middle), column 5 (col index 4, band 40-49) is ALWAYS filled.
+
+// Step A: decide how many numbers each column (band) contributes.
+// 9 values in [1,3] summing to 15.
+function generateColumnCounts() {
+  const counts = Array(9).fill(1); // base: 1 each = sum 9
+  let remaining = 6;               // need to distribute 6 more (each col max +2)
+  let fullColUsed = false;         // track if any column already has count 3 (all 3 rows)
+  const order = shuffle([0,1,2,3,4,5,6,7,8]);
+  for (let i = 0; i < 9 && remaining > 0; i++) {
+    const j = order[i];
+    // At most one column may have count 3 (all rows filled); once that quota is used,
+    // cap additions at +1 so no further column reaches 3.
+    const hardMax = fullColUsed ? 1 : 2;
+    const maxAdd = Math.min(hardMax, remaining);
+    const minAdd = Math.max(0, remaining - (hardMax) * (8 - i)); // guarantee we can finish
+    const add = minAdd + Math.floor(Math.random() * (maxAdd - minAdd + 1));
+    counts[j] += add;
+    if (add === 2) fullColUsed = true; // this column now has count 3
+    remaining -= add;
+  }
+  return counts; // sum = 15, each in [1,3], at most one column equals 3
+}
+
+// Step B: assign columns to rows so every row has exactly 5, and
+// row 1 (middle row) always contains col 4.
+// Returns true if the sorted column list has no 3 or more consecutive columns.
+function noThreeAdjacent(cols) {
+  const s = [...cols].sort((a, b) => a - b);
+  for (let i = 0; i < s.length - 2; i++) {
+    if (s[i + 1] === s[i] + 1 && s[i + 2] === s[i] + 2) return false;
+  }
+  return true;
+}
+
+function tryAssignRows(counts) {
+  // Reserve one slot of col 4 for row 1; put the rest in the pool.
+  const pool = [];
+  counts.forEach((c, j) => {
+    const n = (j === 4) ? c - 1 : c;
+    for (let k = 0; k < n; k++) pool.push(j);
+  });
+  // pool has 14 entries: row0 gets 5, row1Extra gets 4, row2 gets 5.
+  for (let attempt = 0; attempt < 800; attempt++) {
+    const s = shuffle([...pool]);
+    const row0 = s.slice(0, 5);
+    const row1 = [4, ...s.slice(5, 9)]; // col 4 always in middle row
+    const row2 = s.slice(9, 14);
+    // Each row must have 5 distinct columns AND no 3+ adjacent filled columns.
+    if (
+      new Set(row0).size === 5 && noThreeAdjacent(row0) &&
+      new Set(row1).size === 5 && noThreeAdjacent(row1) &&
+      new Set(row2).size === 5 && noThreeAdjacent(row2)
+    ) {
+      const mask = Array.from({length:3}, () => Array(9).fill(0));
+      [row0, row1, row2].forEach((row, r) => row.forEach(j => { mask[r][j] = 1; }));
+      return mask;
+    }
+  }
+  return null;
+}
+
+// Step C: build the 27-element ticket array.
+function generateRandomTicket() {
+  const BANDS = [
+    [1,9],[10,19],[20,29],[30,39],[40,49],
+    [50,59],[60,69],[70,79],[80,90]
+  ];
+  for (let outer = 0; outer < 100; outer++) {
+    const counts = generateColumnCounts();
+    // Pick numbers for each column from its band, sorted ascending.
+    const colNums = BANDS.map(([lo, hi], col) => {
+      const pool = [];
+      for (let n = lo; n <= hi; n++) pool.push(n);
+      return shuffle(pool).slice(0, counts[col]).sort((a, b) => a - b);
+    });
+    const mask = tryAssignRows(counts);
+    if (!mask) continue;
+    // Fill the 27-element array: numbers sorted top-to-bottom within each column.
+    const data = Array(27).fill(0);
+    for (let col = 0; col < 9; col++) {
+      let ni = 0;
+      for (let row = 0; row < 3; row++) {
+        if (mask[row][col]) data[row * 9 + col] = colNums[col][ni++];
+      }
+    }
+    if (data[13] === 0) continue; // safety: middle cell must be filled
+    return data;
+  }
+  return Array(27).fill(0); // should never happen
+}
+
+// Safely read ticket from Firebase state into a 27-element int array (0=empty).
+// Handles both dense array (normal) and object-keyed form (Firebase edge case).
+function safeTicket(raw) {
+  if (!raw) return Array(27).fill(0);
+  if (Array.isArray(raw)) {
+    // Extend to 27 if shorter, replace null/undefined with 0
+    return Array.from({length:27}, (_,i) => Number(raw[i])||0);
+  }
+  if (typeof raw === 'object') {
+    // Firebase sometimes returns a dense array as a plain object {"0":v,"1":v,...}
+    const arr = Array(27).fill(0);
+    Object.entries(raw).forEach(([k,v]) => {
+      const i = parseInt(k, 10);
+      if (i >= 0 && i < 27) arr[i] = Number(v)||0;
+    });
+    return arr;
+  }
+  return Array(27).fill(0);
+}
+
+// ── Host: Render game ──
+function renderHostGame(state) {
+  const called = state.calledNumbers || [];
+  const players = state.players || {};
+  const milestones = state.milestones || {};
+
+  if (!el('h-num-grid').children.length) buildNumGrid('h-num-grid','h');
+  // Clear ALL cells first, then re-apply only the currently called numbers.
+  // Without the clear step, highlights from the previous game persist on a fresh start.
+  el('h-num-grid').querySelectorAll('.num-cell').forEach(c => c.classList.remove('called'));
+  called.forEach(n => { const c=el('hcell'+n); if(c) c.classList.add('called'); });
+  el('h-called-count').textContent = called.length;
+  el('h-big-num').textContent = called.length ? called[called.length-1] : '—';
+  el('h-recent-strip').innerHTML = called.slice(-6).reverse().map(x=>`<span class="recent-pill">${x}</span>`).join('');
+
+  renderHostMilestones(milestones);
+
+  const pList = el('h-player-list'); pList.innerHTML = '';
+  Object.entries(players).forEach(([pid,p]) => {
+    if (p.role==='host' || p.kicked) return;
+    const s = (state.strikes&&state.strikes[pid])||[];
+    const row = document.createElement('div'); row.className = 'player-row';
+    row.innerHTML = `<div class="online-dot ${p.connected?'online':'offline'}"></div>
+      <span class="nick">${p.nick}</span>
+      <span style="font-size:.8rem;color:var(--muted);flex:1">${s.length} struck</span>
+      <button class="btn btn-red btn-sm" onclick="hostRemovePlayer('${pid}')">✕ Remove</button>`;
+    pList.appendChild(row);
+  });
+
+  if (state.lastClaim) {
+    const lc = state.lastClaim;
+    const key = lc.milestoneId+'_'+lc.timestamp;
+    if (key !== _lastNotifKey) { _lastNotifKey = key; showClaimNotif(lc); }
+  }
+
+  // ── Claim window pause/unpause ──
+  const now = Date.now();
+  let hasPendingWindow = false;
+  let pendingMsInfo = null;
+  Object.entries(milestones).forEach(([msId, ms]) => {
+    if (!ms) return;
+    if (ms.pending && ms.windowUntil > now) {
+      hasPendingWindow = true;
+      pendingMsInfo = { msId, windowUntil: ms.windowUntil };
+      scheduleMilestoneFinalization(msId, ms.windowUntil);
+    } else if (ms.pending && ms.windowUntil <= now) {
+      finalizeMilestoneById(msId); // window expired but not yet written — finalize now
+    }
+  });
+
+  if (hasPendingWindow && !_pausedForClaim) {
+    _pausedForClaim = true;
+    _wasAutoWhenPaused = !!autoTimer;
+    if (autoTimer) stopAuto();
+    const pMs = MILESTONES.find(m => m.id === pendingMsInfo.msId);
+    const banner = el('claim-window-banner');
+    if (banner) { el('cwb-title').textContent = `⏳ ${pMs?.label || 'Milestone'} — Claim Window Open!`; banner.style.display = 'flex'; }
+    const db2 = el('draw-btn'); if (db2) db2.disabled = true;
+  } else if (!hasPendingWindow && _pausedForClaim) {
+    _pausedForClaim = false;
+    const banner = el('claim-window-banner'); if (banner) banner.style.display = 'none';
+    const db2 = el('draw-btn'); if (db2) db2.disabled = false;
+    if (_wasAutoWhenPaused) { _wasAutoWhenPaused = false; startAuto(); }
+  }
+}
+
+function buildNumGrid(id, prefix) {
+  const g = el(id); g.innerHTML = '';
+  for(let i=1;i<=90;i++) {
+    const d = document.createElement('div');
+    d.className='num-cell'; d.id=prefix+'cell'+i; d.textContent=i;
+    g.appendChild(d);
+  }
+}
+
+function renderHostMilestones(milestones) {
+  const box = el('h-milestones'); box.innerHTML = '';
+  const now = Date.now();
+  MILESTONES.forEach((m,i) => {
+    const won = milestones[m.id];
+    const isPending = won && won.pending && won.windowUntil > now;
+    const isLocked  = won && !won.pending;
+    const winners   = won && won.winners ? Object.values(won.winners) : [];
+    const winnerStr = won && won.winnerNick ? won.winnerNick : winners.join(', ');
+    const d = document.createElement('div');
+    d.className = `milestone-card ms${i}${isLocked ? ' won' : ''}${isPending ? ' pending' : ''}`;
+    d.innerHTML = `<div class="ms-title" style="color:${m.color}">${m.label}</div>
+      <div style="font-size:.78rem;color:var(--muted)">${m.desc}</div>
+      ${isLocked  ? `<div class="ms-winner">🏆 ${winnerStr}</div>`
+       : isPending ? `<div class="ms-winner">⏳ ${winnerStr} — window open…</div>`
+       : '<div class="ms-winner" style="color:var(--muted)">— Open —</div>'}`;
+    box.appendChild(d);
+  });
+}
+
+function showClaimNotif(lc) {
+  const ms = MILESTONES.find(m=>m.id===lc.milestoneId);
+  const makeNotif = (closeBtn) => {
+    const d = document.createElement('div'); d.className = 'claim-notif';
+    d.innerHTML = `<div class="cn-icon">🏆</div>
+      <div class="cn-text">
+        <strong>${lc.playerNick} claimed ${ms?ms.label:lc.milestoneId}!</strong>
+        <span>${ms?ms.desc:''}</span>
+      </div>
+      ${closeBtn}`;
+    return d;
+  };
+
+  // ① Fixed overlay — always visible no matter where the host has scrolled
+  const fixed = el('fixed-claim-notif'); fixed.innerHTML = '';
+  const fixedDiv = makeNotif(`<button class="btn btn-sm btn-outline" onclick="el('fixed-claim-notif').innerHTML=''">✕</button>`);
+  fixed.appendChild(fixedDiv);
+
+  // ② In-page area (only exists on host screen)
+  const area = el('claim-notif-area');
+  let pageDiv = null;
+  if (area) {
+    area.innerHTML = '';
+    pageDiv = makeNotif(`<button class="btn btn-sm btn-outline" onclick="this.closest('.claim-notif').remove()">✕</button>`);
+    area.appendChild(pageDiv);
+  }
+
+  clearTimeout(claimNotifTimer);
+  claimNotifTimer = setTimeout(() => { fixedDiv.remove(); if (pageDiv) pageDiv.remove(); }, 10000);
+}
+
+// ── Host: Draw number ──
+window.hostDrawNumber = async function() {
+  // Block draw if a claim window is currently active
+  const msSnap = await get(ref(db, `${ROOM}/milestones`));
+  const msData = msSnap.val() || {};
+  const nowTs = Date.now();
+  const activeEntry = Object.entries(msData).find(([,ms]) => ms && ms.pending && ms.windowUntil > nowTs);
+  if (activeEntry) {
+    const msInfo = MILESTONES.find(m => m.id === activeEntry[0]);
+    showToast(`⏳ ${msInfo?.label || 'Milestone'} claim window is open — please wait!`, 2500);
+    return;
+  }
+  // Finalize any expired pending milestones before drawing
+  await Promise.all(
+    Object.entries(msData)
+      .filter(([,ms]) => ms && ms.pending && ms.windowUntil <= nowTs)
+      .map(([msId]) => finalizeMilestoneById(msId))
+  );
+  const snap = await get(ROOM_REF()); const state = snap.val();
+  if (!state || state.phase!=='playing') return;
+  const called = state.calledNumbers || [];
+  if (called.length>=90) { showToast('All 90 numbers drawn!'); stopAuto(); return; }
+  const rem = Array.from({length:90},(_,i)=>i+1).filter(n=>!called.includes(n));
+  const n = rem[Math.floor(Math.random()*rem.length)];
+  await update(ROOM_REF(), { calledNumbers:[...called,n] });
+  const bn = el('h-big-num'); bn.style.animation='none'; void bn.offsetWidth; bn.style.animation='';
+};
+
+// ── Host: Auto draw ──
+window.toggleAuto = function() { autoTimer ? stopAuto() : startAuto(); };
+function startAuto() {
+  autoInterval = parseInt(el('speed-sel').value)||0;
+  if (!autoInterval) { showToast('Select an auto-draw speed'); return; }
+  const btn = el('auto-btn');
+  btn.textContent='⏹ Stop Auto'; btn.style.cssText='background:#ff7043;color:#fff;border:none';
+  el('draw-btn').disabled=true; el('timer-bar-wrap').style.display='block';
+  el('speed-sel').onchange = () => { autoInterval=parseInt(el('speed-sel').value)||0; if(autoTimer){stopAuto();startAuto();} };
+  runStep();
+}
+function runStep() { hostDrawNumber(); animateBar(autoInterval); autoTimer=setTimeout(runStep,autoInterval); }
+function stopAuto() {
+  clearTimeout(autoTimer); autoTimer=null;
+  const btn=el('auto-btn'); if(!btn) return;
+  btn.textContent='▶ Auto Draw'; btn.style.cssText='';
+  const db=el('draw-btn'); if(db) db.disabled=false;
+  const tw=el('timer-bar-wrap'); if(tw) tw.style.display='none';
+}
+function animateBar(dur) {
+  const bar=el('timer-bar'); if(!bar) return;
+  bar.style.transition='none'; bar.style.width='100%';
+  void bar.offsetWidth; bar.style.transition=`width ${dur}ms linear`; bar.style.width='0%';
+}
+
+// ── Host: Declare winners from lobby (no numbers drawn yet or game abandoned) ──
+window.hostDeclareFromLobby = async function() {
+  if (!confirm('Declare game over and show results to all players?')) return;
+  await update(ROOM_REF(), { phase:'ended' });
+};
+
+// ── Host: Declare winners mid-game (show results now) ──
+window.hostDeclareGame = async function() {
+  if (!confirm('Declare winners and show the results screen to all players?')) return;
+  stopAuto();
+  await update(ROOM_REF(), { phase:'ended' });
+};
+
+// ── Host: Terminate game (same as declare, kept for back-compat) ──
+window.hostTerminateGame = async function() {
+  if (!confirm('End the game without declaring? Results will still be shown.')) return;
+  stopAuto(); await update(ROOM_REF(), { phase:'ended' });
+};
+
+// ── Player: Render game ──
+function renderPlayerGame(state) {
+  const called     = state.calledNumbers || [];
+  const ticket     = safeTicket(state.tickets && state.tickets[myId]);
+  const strikes    = (state.strikes  && state.strikes[myId]) || [];
+  const milestones = state.milestones || {};
+  const struckSet  = new Set(strikes);
+
+  el('p-nick-badge').textContent = myNick;
+
+  if (!el('p-num-grid').children.length) buildNumGrid('p-num-grid','p');
+  for(let i=1;i<=90;i++) el('pcell'+i)?.classList.remove('called');
+  called.forEach(n => { const c=el('pcell'+n); if(c) c.classList.add('called'); });
+  el('p-called-count').textContent = called.length;
+
+  renderPlayerTicket(ticket, struckSet, called);
+  renderPlayerClaims(ticket, struckSet, milestones, called);
+
+  // Announce claims to all players (same notification as host sees)
+  if (state.lastClaim) {
+    const lc = state.lastClaim;
+    const key = lc.milestoneId + '_' + lc.timestamp;
+    if (key !== _lastPlayerNotifKey) {
+      _lastPlayerNotifKey = key;
+      showClaimNotif(lc); // uses fixed-claim-notif (works on all screens)
+    }
+  }
+}
+
+function renderPlayerTicket(ticket, struckSet, called) {
+  const t = el('p-live-ticket'); t.innerHTML = '';
+  const ticketNums = ticket.filter(v => v > 0); // v>0 because 0 means empty
+  if (ticketNums.length === 0) {
+    // Ticket not yet assigned — show waiting message
+    const msg = document.createElement('div');
+    msg.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--muted);padding:1.5rem;font-size:.9rem;';
+    msg.textContent = '⏳ Waiting for host to distribute ticket…';
+    t.appendChild(msg);
+    el('p-struck-count').textContent = '0';
+    el('p-remaining-count').textContent = '0';
+    return;
+  }
+  ticket.forEach(val => {
+    const cell = document.createElement('div');
+    const isEmpty = val === 0;
+    const struck  = !isEmpty && struckSet.has(val);
+    cell.className = `ticket-cell${isEmpty?' empty':''}${struck?' struck':''}`;
+    if (!isEmpty) { cell.textContent = val; cell.onclick = () => playerStrike(val, called); }
+    t.appendChild(cell);
+  });
+  el('p-struck-count').textContent    = [...struckSet].filter(n => ticketNums.includes(n)).length;
+  el('p-remaining-count').textContent = ticketNums.filter(n => !struckSet.has(n)).length;
+}
+
+// ── Player: Strike (validate called) ──
+async function playerStrike(num, called) {
+  const calledSet = new Set(called);
+  const snap = await get(STRIKES_REF(myId));
+  const strikes = snap.val() || [];
+  const struckSet = new Set(strikes);
+  if (struckSet.has(num)) { struckSet.delete(num); }
+  else {
+    if (!calledSet.has(num)) { showToast("⚠️ That number hasn't been called yet!"); return; }
+    struckSet.add(num);
+  }
+  await set(STRIKES_REF(myId), [...struckSet]);
+}
+
+// ── Player: Claim section ──
+function renderPlayerClaims(ticket, struckSet, milestones, called) {
+  const box = el('p-claim-section'); if(!box) return;
+  box.innerHTML = '';
+  const now = Date.now();
+  // Build list of full-house milestone ids in order, to gate later ones behind earlier ones
+  const fullHouseIds = MILESTONES.filter(m => m.isFull || m.id === 'full').map(m => m.id);
+
+  MILESTONES.forEach(m => {
+    const ms_data  = milestones[m.id];
+    const winners  = ms_data && ms_data.winners ? ms_data.winners : {};
+    const wonByMe  = !!winners[myId];
+    const isPending = ms_data && ms_data.pending && ms_data.windowUntil > now;
+    const isLocked  = ms_data && !ms_data.pending;
+    const winnerStr = ms_data && ms_data.winnerNick ? ms_data.winnerNick : Object.values(winners).join(', ');
+
+    // For full house milestones, check that the previous full house is already locked
+    let prevFhLocked = true;
+    const fhPos = fullHouseIds.indexOf(m.id);
+    if (fhPos > 0) {
+      const prevMs = milestones[fullHouseIds[fhPos - 1]];
+      prevFhLocked = !!(prevMs && !prevMs.pending);
+    }
+
+    const baseEligible = checkMilestone(m.id, ticket, struckSet, called);
+    const eligible = baseEligible && prevFhLocked;
+
+    const row = document.createElement('div'); row.className='claim-row';
+    let act;
+    if (isLocked) {
+      if (wonByMe) act = `<span class="status-won">✓ You won! 🏆</span>`;
+      else         act = `<span class="status-taken">🏆 ${winnerStr}</span>`;
+    } else if (isPending) {
+      if (wonByMe) act = `<span class="status-won">✓ Claimed! ⏳ window open</span>`;
+      else         act = `<button class="btn btn-sm ${eligible ? 'btn-pink' : 'btn-outline'}" ${eligible ? '' : 'disabled'}>Claim! ⏳</button>`;
+    } else {
+      act = `<button class="btn btn-sm ${eligible ? 'btn-pink' : 'btn-outline'}" ${eligible ? '' : 'disabled'}>Claim!</button>`;
+    }
+    row.innerHTML = `<div class="ms-label">${m.label}<br>
+      <span style="font-size:.75rem;color:var(--muted);font-weight:400">${m.desc}</span></div>${act}`;
+    if (!isLocked && !wonByMe && eligible)
+      row.querySelector('button')?.addEventListener('click', () => playerClaim(m.id, ticket, struckSet, called));
+    box.appendChild(row);
+  });
+}
+
+// ── Milestone check (local) ──
+function checkMilestone(id, ticket, struckSet, called) {
+  if (!ticket || ticket.length < 27) return false;
+  const allNums = ticket.filter(v => v > 0);
+  if (allNums.length === 0) return false; // ticket not loaded yet — never eligible
+  const calledSet = new Set(called);
+  // rowNums: the actual numbers placed in a row (non-zero cells only)
+  const rowNums = r => ticket.slice(r*9, r*9+9).filter(v => v > 0);
+  // rowDone: ALL numbers in that row are both called AND struck
+  // NOTE: guard rowNums.length>0 to avoid JavaScript's vacuous truth ([].every = true)
+  const rowDone = r => {
+    const nums = rowNums(r);
+    return nums.length > 0 && nums.every(n => struckSet.has(n) && calledSet.has(n));
+  };
+  switch (id) {
+    case 'early5': {
+      // At least 5 numbers that are both on the ticket AND called AND struck
+      return [...struckSet].filter(n => n > 0 && calledSet.has(n) && allNums.includes(n)).length >= 5;
+    }
+    case 'middle': {
+      // Row 1 (middle row), column index 4 = flat index 13 — forced by generator
+      const midVal = ticket[13];
+      return midVal > 0 && struckSet.has(midVal) && calledSet.has(midVal);
+    }
+    case 'top':      return rowDone(0);
+    case 'mid-line': return rowDone(1);
+    case 'bot-line': return rowDone(2);
+    case 'full': {
+      return allNums.length > 0 && allNums.every(n => struckSet.has(n) && calledSet.has(n));
+    }
+    default: {
+      // Dynamic full house milestones: full1, full2, full3 …
+      if (id.startsWith('full')) {
+        // All previous full house milestones must already be locked before this one can be claimed
+        const msIdx = MILESTONES.findIndex(m => m.id === id);
+        if (msIdx < 0) return false;
+        // Check that every earlier full house milestone is locked (finalized) in current state
+        // We can't access milestones state here directly, so pass it in via closure/arg.
+        // For the local eligibility check we only look at the full-house sequence via the
+        // struck/called check — each Full House needs ALL 15 struck the same way.
+        return allNums.length > 0 && allNums.every(n => struckSet.has(n) && calledSet.has(n));
+      }
+      return false;
+    }
+  }
+}
+
+// ── Player: Atomic claim (configurable multi-winner window) ──
+async function playerClaim(msId, ticket, struckSet, called) {
+  if (!checkMilestone(msId, ticket, struckSet, called)) {
+    showToast('⚠️ Milestone requirements not fully met'); return;
+  }
+
+  // Read claim window duration and full-house ordering from Firebase
+  const roomSnap = await get(ROOM_REF());
+  const roomState = roomSnap.val() || {};
+  const claimWindowMs = (roomState.gameSettings && roomState.gameSettings.claimWindowMs) || 5000;
+
+  // Gate full house N behind full house N-1 (server-side check)
+  const fullHouseIds = MILESTONES.filter(m => m.isFull || m.id === 'full').map(m => m.id);
+  const fhPos = fullHouseIds.indexOf(msId);
+  if (fhPos > 0) {
+    const prevMs = (roomState.milestones || {})[fullHouseIds[fhPos - 1]];
+    if (!prevMs || prevMs.pending) {
+      showToast(`⚠️ Claim Full House ${fhPos} first!`); return;
+    }
+  }
+
+  let committed = false;
+  let alreadyMine = false;
+  try {
+    const res = await runTransaction(MS_REF(msId), cur => {
+      const t = Date.now();
+      if (cur === null) {
+        // First claim — open a configurable window for others to also claim
+        return { pending: true, windowUntil: t + claimWindowMs, winners: { [myId]: myNick } };
+      }
+      if (!cur.pending) return undefined;           // finalized — abort
+      if (cur.windowUntil <= t) return undefined;   // window expired — abort
+      if (cur.winners && cur.winners[myId]) {
+        alreadyMine = true; return cur;             // already in winners, no-op commit
+      }
+      // Add this player to the winners during the open window
+      return { ...cur, winners: { ...cur.winners, [myId]: myNick } };
+    });
+    committed = res.committed;
+  } catch(e) { showToast('Network error — try again'); return; }
+
+  const secLabel = Math.round(claimWindowMs / 1000);
+  if (committed && !alreadyMine) {
+    const ms = MILESTONES.find(m => m.id === msId);
+    await update(ROOM_REF(), {
+      lastClaim: { playerId: myId, playerNick: myNick, milestoneId: msId, milestoneLabel: ms?.label || msId, timestamp: Date.now() }
+    });
+    showWinner(myNick, ms?.label || msId);
+    showToast(`🏆 ${ms?.label} claimed! ${secLabel}-second window open for others!`, claimWindowMs);
+  } else if (alreadyMine) {
+    showToast('You already claimed this milestone!');
+  } else {
+    showToast('😔 Claim window closed or milestone already taken!');
+  }
+}
+
+// ── Milestone finalization helpers (host only) ──
+// Schedule a local timer to finalize a pending claim window when it expires.
+// Deduped by msId+windowUntil so multiple renders don't create multiple timers.
+function scheduleMilestoneFinalization(msId, windowUntil) {
+  const key = msId + '_' + windowUntil;
+  if (_pendingMsTimers[key]) return;
+  const delay = Math.max(0, windowUntil - Date.now());
+  _pendingMsTimers[key] = setTimeout(async () => {
+    delete _pendingMsTimers[key];
+    await finalizeMilestoneById(msId);
+  }, delay + 250); // 250ms grace period
+}
+
+async function finalizeMilestoneById(msId) {
+  const snap = await get(MS_REF(msId));
+  const cur = snap.val();
+  if (!cur || !cur.pending) return; // already finalized
+  const winners = cur.winners || {};
+  const winnerStr = Object.values(winners).join(', ');
+  await update(MS_REF(msId), { pending: false, winnerNick: winnerStr });
+
+  // ── Check if ALL milestones are now finalized; if so, trigger Game Over ──
+  if (myRole === 'host') {
+    const allMsSnap = await get(ref(db, `${ROOM}/milestones`));
+    const allMs = allMsSnap.val() || {};
+    const allClaimed = MILESTONES.every(m => {
+      const ms = allMs[m.id];
+      return ms && ms.pending === false; // explicitly false = finalized
+    });
+    if (allClaimed) {
+      // Use the configured claim window duration for the game-over countdown
+      const roomSnap2 = await get(ROOM_REF());
+      const rs = roomSnap2.val() || {};
+      const claimMs = (rs.gameSettings && rs.gameSettings.claimWindowMs) || 5000;
+      await update(ROOM_REF(), { gameOverAt: Date.now() + claimMs });
+    }
+  }
+}
+
+// ── Game Over overlay ──
+function showGameOverOverlay(gameOverAt, milestones) {
+  if (_gameOverShown) return;
+  _gameOverShown = true;
+
+  // Build winner summary string
+  const winnerLines = MILESTONES.map(m => {
+    const ms = milestones[m.id];
+    const w = ms ? (ms.winnerNick || '') : '';
+    return w ? `${m.label}: <strong>${w}</strong>` : null;
+  }).filter(Boolean);
+  const winnersEl = el('go-winners');
+  if (winnersEl) winnersEl.innerHTML = winnerLines.join(' &nbsp;·&nbsp; ');
+
+  el('game-over-overlay').classList.add('show');
+
+  // Animated countdown using requestAnimationFrame
+  const tick = () => {
+    const rem = Math.max(0, Math.ceil((gameOverAt - Date.now()) / 1000));
+    const cdEl = el('go-countdown'); if (cdEl) cdEl.textContent = rem;
+    if (rem > 0 && _gameOverShown) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  // After countdown: host writes phase:ended; players will be routed by Firebase listener
+  const delay = Math.max(0, gameOverAt - Date.now());
+  _gameOverTimer = setTimeout(async () => {
+    if (myRole === 'host') {
+      stopAuto();
+      await update(ROOM_REF(), { phase: 'ended' });
+      // clearGameOverOverlay called by handleStateChange when phase === 'ended'
+    }
+    // Players: handleStateChange will catch phase:ended from Firebase and call clearGameOverOverlay
+  }, delay + 300); // slight grace so Firebase write arrives before timer fires on other clients
+}
+
+function clearGameOverOverlay() {
+  _gameOverShown = false;
+  clearTimeout(_gameOverTimer); _gameOverTimer = null;
+  const ov = el('game-over-overlay'); if (ov) ov.classList.remove('show');
+}
+
+// ── Host: Remove a player ──
+window.hostRemovePlayer = async function(pid) {
+  if (!confirm('Remove this player from the game?')) return;
+  // Mark as kicked in Firebase — their listener will catch this and send them to login
+  await update(PLAYER_REF(pid), { kicked:true, connected:false });
+  onDisconnect(PLAYER_REF(pid)).cancel();
+};
+
+// ── Go to Lobby (replaces Go Home on ended screen) ──
+// Host wipes all players except themselves and resets room to lobby.
+// Players who are still subscribed detect they're no longer in the list → sent to login.
+window.goToLobby = async function() {
+  _ignoringEnded = true;
+  clearGameOverOverlay();
+  if (myRole === 'host') {
+    // Keep all non-kicked players in Firebase so they land in lobby without re-joining
+    const snap = await get(ROOM_REF());
+    const cur = snap.val();
+    const keepPlayers = { [myId]: { nick:myNick, role:'host', connected:true, joinedAt:Date.now() } };
+    if (cur && cur.players) {
+      Object.entries(cur.players).forEach(([pid, p]) => {
+        if (pid !== myId && !p.kicked) keepPlayers[pid] = p;
+      });
+    }
+    await set(ROOM_REF(), {
+      phase:'lobby', hostId:myId,
+      players: keepPlayers,
+      calledNumbers:[], tickets:{}, strikes:{}, milestones:{}, lastClaim:null, gameOverAt:null
+    });
+    // Firebase listener routes everyone to s-lobby via handleStateChange
+  } else {
+    // Player: show lobby directly — they're already subscribed and still in Firebase
+    showScreen('s-lobby');
+  }
+};
+
+// ── End screen ──
+function renderEndScreen(state) {
+  const milestones = state.milestones || {};
+  const box = el('ended-results'); box.innerHTML = '';
+  MILESTONES.forEach(m => {
+    const won = milestones[m.id];
+    let winnerStr = null;
+    if (won) {
+      if (won.winnerNick) winnerStr = won.winnerNick;
+      else if (won.winners) winnerStr = Object.values(won.winners).join(', ');
+    }
+    const row = document.createElement('div'); row.className='ms-result-row';
+    row.innerHTML = `<span class="ms-name" style="color:${m.color}">${m.label}</span>
+      ${winnerStr ? `<span class="ms-winner-name">🏆 ${winnerStr}</span>` : '<span class="ms-open">— Unclaimed —</span>'}`;
+    box.appendChild(row);
+  });
+}
+</script>
+</body>
+</html>

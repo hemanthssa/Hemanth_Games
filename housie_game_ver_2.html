@@ -253,6 +253,25 @@
     color:var(--pink); min-width:2ch; text-align:center; line-height:1;
   }
   .stepper-unit { font-size:.8rem; color:var(--muted); font-weight:600; }
+  .setting-card.disabled { opacity:.5; pointer-events:none; }
+
+  /* ── TOGGLE SWITCH ── */
+  .toggle-row { display:flex; align-items:center; gap:.9rem; margin-bottom:1rem; }
+  .toggle-label { font-size:.92rem; font-weight:700; color:var(--text); flex:1; }
+  .toggle-label small { display:block; font-size:.75rem; font-weight:400; color:var(--muted); margin-top:.1rem; }
+  .toggle-switch { position:relative; width:48px; height:26px; flex-shrink:0; }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-track {
+    position:absolute; inset:0; border-radius:13px; background:#ddd;
+    cursor:pointer; transition:background .2s;
+  }
+  .toggle-switch input:checked + .toggle-track { background:var(--pink); }
+  .toggle-track::after {
+    content:''; position:absolute; width:20px; height:20px; border-radius:50%;
+    background:#fff; top:3px; left:3px; transition:transform .2s;
+    box-shadow:0 1px 4px rgba(0,0,0,.2);
+  }
+  .toggle-switch input:checked + .toggle-track::after { transform:translateX(22px); }
 
   /* ── CLAIM WINDOW BANNER (host) ── */
   .claim-window-banner {
@@ -353,16 +372,29 @@
     </div>
     <div class="lobby-card" id="host-controls" style="display:none">
       <div class="section-label">Game Settings</div>
+
+      <!-- Multi-person claim toggle -->
+      <div class="toggle-row">
+        <div class="toggle-label">
+          👥 Multi-person Claim
+          <small>Allow multiple eligible players to claim the same milestone within a time window</small>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="multiClaim-toggle" checked onchange="toggleMultiClaim(this.checked)">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+
       <div class="settings-grid">
 
         <!-- Claim window duration -->
-        <div class="setting-card">
+        <div class="setting-card" id="claimSec-card">
           <div class="sc-label">⏳ Claim Window</div>
           <div class="sc-title">Multi-claim Delay</div>
           <div class="sc-desc">Seconds other eligible players have to also claim a milestone</div>
           <div class="setting-stepper">
             <button class="stepper-btn" onclick="stepSetting('claimSec',-1)" id="claimSec-minus">−</button>
-            <span class="stepper-val" id="claimSec-val">5</span>
+            <span class="stepper-val" id="claimSec-val">10</span>
             <span class="stepper-unit">sec</span>
             <button class="stepper-btn" onclick="stepSetting('claimSec',+1)" id="claimSec-plus">+</button>
           </div>
@@ -582,8 +614,8 @@ let _gameOverTimer = null;        // timer to transition to ended after game-ove
 let _ignoringEnded = false; // true when user explicitly navigated to lobby from ended screen
 
 // ── Lobby settings (host only, persisted to Firebase on Start) ──
-const SETTINGS = { claimSec: 5, fullHouses: 1 };
-const SETTING_LIMITS = { claimSec: [1, 10], fullHouses: [1, 5] };
+const SETTINGS = { claimSec: 10, fullHouses: 1, multiClaim: true };
+const SETTING_LIMITS = { claimSec: [1, 30], fullHouses: [1, 5] };
 
 window.stepSetting = function(key, delta) {
   const [min, max] = SETTING_LIMITS[key];
@@ -591,6 +623,12 @@ window.stepSetting = function(key, delta) {
   el(`${key}-val`).textContent = SETTINGS[key];
   el(`${key}-minus`).disabled = SETTINGS[key] <= min;
   el(`${key}-plus`).disabled  = SETTINGS[key] >= max;
+};
+
+window.toggleMultiClaim = function(enabled) {
+  SETTINGS.multiClaim = enabled;
+  const card = el('claimSec-card');
+  if (card) card.classList.toggle('disabled', !enabled);
 };
 
 // ── Utilities ──
@@ -888,7 +926,7 @@ window.hostStartGame = async function() {
   const usedTickets = new Set();
   const usedMiddleNums = new Set(); // ensure ticket[13] (row-2, col-5) is unique per player
 
-  const gameSettings = { claimWindowMs: SETTINGS.claimSec * 1000, fullHouseCount: SETTINGS.fullHouses };
+  const gameSettings = { claimWindowMs: SETTINGS.claimSec * 1000, fullHouseCount: SETTINGS.fullHouses, multiClaim: SETTINGS.multiClaim };
   MILESTONES = buildMilestones(SETTINGS.fullHouses);
 
   Object.entries(players).forEach(([pid,p]) => {
@@ -1122,30 +1160,34 @@ function renderHostMilestones(milestones) {
   });
 }
 
+// Global helpers so inline onclick on dynamically-created notifs can reach them
+window.closeFixedClaimNotif = () => { const f = document.getElementById('fixed-claim-notif'); if (f) f.innerHTML = ''; clearTimeout(claimNotifTimer); };
+window.closePageClaimNotif  = (btn) => { btn.closest('.claim-notif')?.remove(); clearTimeout(claimNotifTimer); };
+
 function showClaimNotif(lc) {
   const ms = MILESTONES.find(m=>m.id===lc.milestoneId);
-  const makeNotif = (closeBtn) => {
+  const makeNotif = (closeFn) => {
     const d = document.createElement('div'); d.className = 'claim-notif';
     d.innerHTML = `<div class="cn-icon">🏆</div>
       <div class="cn-text">
         <strong>${lc.playerNick} claimed ${ms?ms.label:lc.milestoneId}!</strong>
         <span>${ms?ms.desc:''}</span>
       </div>
-      ${closeBtn}`;
+      <button class="btn btn-sm btn-outline" onclick="${closeFn}">✕</button>`;
     return d;
   };
 
   // ① Fixed overlay — always visible no matter where the host has scrolled
-  const fixed = el('fixed-claim-notif'); fixed.innerHTML = '';
-  const fixedDiv = makeNotif(`<button class="btn btn-sm btn-outline" onclick="el('fixed-claim-notif').innerHTML=''">✕</button>`);
+  const fixed = document.getElementById('fixed-claim-notif'); fixed.innerHTML = '';
+  const fixedDiv = makeNotif('closeFixedClaimNotif()');
   fixed.appendChild(fixedDiv);
 
   // ② In-page area (only exists on host screen)
-  const area = el('claim-notif-area');
+  const area = document.getElementById('claim-notif-area');
   let pageDiv = null;
   if (area) {
     area.innerHTML = '';
-    pageDiv = makeNotif(`<button class="btn btn-sm btn-outline" onclick="this.closest('.claim-notif').remove()">✕</button>`);
+    pageDiv = makeNotif('closePageClaimNotif(this)');
     area.appendChild(pageDiv);
   }
 
@@ -1392,10 +1434,12 @@ async function playerClaim(msId, ticket, struckSet, called) {
     showToast('⚠️ Milestone requirements not fully met'); return;
   }
 
-  // Read claim window duration and full-house ordering from Firebase
+  // Read game settings from Firebase
   const roomSnap = await get(ROOM_REF());
   const roomState = roomSnap.val() || {};
-  const claimWindowMs = (roomState.gameSettings && roomState.gameSettings.claimWindowMs) || 5000;
+  const gs = roomState.gameSettings || {};
+  const multiClaimEnabled = gs.multiClaim !== false; // default true if not set
+  const claimWindowMs = (multiClaimEnabled ? (gs.claimWindowMs || 5000) : 0);
 
   // Gate full house N behind full house N-1 (server-side check)
   const fullHouseIds = MILESTONES.filter(m => m.isFull || m.id === 'full').map(m => m.id);
@@ -1413,7 +1457,11 @@ async function playerClaim(msId, ticket, struckSet, called) {
     const res = await runTransaction(MS_REF(msId), cur => {
       const t = Date.now();
       if (cur === null) {
-        // First claim — open a configurable window for others to also claim
+        if (!multiClaimEnabled) {
+          // Single-claim mode: finalize immediately with no window
+          return { pending: false, windowUntil: t, winners: { [myId]: myNick }, winnerNick: myNick };
+        }
+        // Multi-claim mode: open a configurable window for others to also claim
         return { pending: true, windowUntil: t + claimWindowMs, winners: { [myId]: myNick } };
       }
       if (!cur.pending) return undefined;           // finalized — abort
@@ -1434,7 +1482,13 @@ async function playerClaim(msId, ticket, struckSet, called) {
       lastClaim: { playerId: myId, playerNick: myNick, milestoneId: msId, milestoneLabel: ms?.label || msId, timestamp: Date.now() }
     });
     showWinner(myNick, ms?.label || msId);
-    showToast(`🏆 ${ms?.label} claimed! ${secLabel}-second window open for others!`, claimWindowMs);
+    if (multiClaimEnabled) {
+      showToast(`🏆 ${ms?.label} claimed! ${secLabel}-second window open for others!`, claimWindowMs);
+    } else {
+      showToast(`🏆 ${ms?.label} is yours!`, 3500);
+      // Single-claim: immediately check for game over
+      await finalizeMilestoneById(msId);
+    }
   } else if (alreadyMine) {
     showToast('You already claimed this milestone!');
   } else {
@@ -1475,7 +1529,9 @@ async function finalizeMilestoneById(msId) {
       // Use the configured claim window duration for the game-over countdown
       const roomSnap2 = await get(ROOM_REF());
       const rs = roomSnap2.val() || {};
-      const claimMs = (rs.gameSettings && rs.gameSettings.claimWindowMs) || 5000;
+      const gs2 = rs.gameSettings || {};
+      const multiClaimOn = gs2.multiClaim !== false;
+      const claimMs = multiClaimOn ? (gs2.claimWindowMs || 5000) : 5000; // always 5s for game-over even if multi-claim off
       await update(ROOM_REF(), { gameOverAt: Date.now() + claimMs });
     }
   }

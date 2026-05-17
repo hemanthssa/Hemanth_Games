@@ -717,23 +717,72 @@ window.leaveRoom = function() {
 // WebSocket (e.g. user switches back to the tab after it was backgrounded).
 // We use this to re-write connected:true and re-arm the onDisconnect handler,
 // which is the only reliable way to restore the green dot after a reconnect.
+//
+// Going OFFLINE: Firebase's onDisconnect fires only after a server heartbeat
+// timeout (~30-60 s). To get an instant grey dot we also listen to:
+//   • document visibilitychange (tab hidden / minimised)
+//   • window blur/focus        (app loses/regains OS focus)
+//   • navigator offline/online (network cable pulled / mobile data off)
+// These write connected:false immediately so everyone sees the grey dot right away.
+// When the player comes back (visible + focus + online) we write connected:true
+// immediately as well — which already worked fast, but is now kept in sync here too.
+
 let connUnsub = null;
+
+function _markConnected(isOnline) {
+  if (!myId) return;
+  update(PLAYER_REF(myId), { connected: isOnline });
+}
+
+function _isEffectivelyOnline() {
+  return document.visibilityState === 'visible' && navigator.onLine;
+}
+
 function subscribeConnectionState() {
   if (connUnsub) return; // already subscribed
+
+  // ① Firebase .info/connected — handles true network drop / reconnect
   const connRef = ref(db, '.info/connected');
-  const cb = onValue(connRef, snap => {
-    if (!myId) return; // not logged in — ignore
+  const firebaseCb = onValue(connRef, snap => {
+    if (!myId) return;
     if (snap.val() === true) {
-      // Re-arm: if we disconnect again, mark offline
+      // Re-arm the server-side onDisconnect for real TCP drops
       onDisconnect(PLAYER_REF(myId)).update({ connected: false });
-      // Re-assert online presence
-      update(PLAYER_REF(myId), { connected: true });
+      // Only mark online if the tab is actually visible; avoids a race where
+      // Firebase reconnects while the tab is still hidden in the background.
+      if (_isEffectivelyOnline()) _markConnected(true);
     }
-    // When snap.val() === false the onDisconnect handler already fires server-side;
-    // we don't need to do anything extra here.
+    // snap.val() === false: server-side onDisconnect already wrote connected:false
   });
-  connUnsub = () => off(connRef, 'value', cb);
+
+  // ② Page Visibility API — fires instantly when tab is hidden / shown
+  const onVisibilityChange = () => {
+    if (!myId) return;
+    if (document.visibilityState === 'hidden') {
+      _markConnected(false);
+    } else {
+      // Tab is visible again; only go green if network is also up
+      if (navigator.onLine) _markConnected(true);
+    }
+  };
+
+  // ③ Network status events — fires when the device goes completely offline / back online
+  const onNetworkOffline = () => { if (myId) _markConnected(false); };
+  const onNetworkOnline  = () => { if (myId && document.visibilityState === 'visible') _markConnected(true); };
+
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('offline', onNetworkOffline);
+  window.addEventListener('online',  onNetworkOnline);
+
+  // Teardown removes all three listeners + Firebase listener
+  connUnsub = () => {
+    off(connRef, 'value', firebaseCb);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('offline', onNetworkOffline);
+    window.removeEventListener('online',  onNetworkOnline);
+  };
 }
+
 function unsubscribeConnectionState() {
   if (connUnsub) { connUnsub(); connUnsub = null; }
 }
